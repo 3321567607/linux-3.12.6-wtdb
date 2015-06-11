@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 Free Electrons
+ * Copyright 2012 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -13,88 +13,245 @@
 /include/ "imx28.dtsi"
 
 / {
-	model = "Crystalfontz CFA-10036 Board";
-	compatible = "crystalfontz,cfa10036", "fsl,imx28";
+	model = "Techsigno CPU-0285-00";
+	compatible = "fsl,imx28-evk", "fsl,imx28";
 
 	memory {
-		reg = <0x40000000 0x08000000>;
+		reg = <0x40000000 0x50000000>;
 	};
 
 	apb@80000000 {
 		apbh@80000000 {
-			pinctrl@80018000 {
-				ssd1306_cfa10036: ssd1306-10036@0 {
-					reg = <0>;
-					fsl,pinmux-ids = <
-						0x2073 /* MX28_PAD_SSP0_D7__GPIO_2_7 */
-					>;
-					fsl,drive-strength = <0>;
-					fsl,voltage = <1>;
-					fsl,pull-up = <0>;
+			gpmi-nand@8000c000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&gpmi_pins_a &gpmi_status_cfg
+					     &gpmi_pins_evk>;
+				status = "okay";
+				partition@0 {
+					label = "gpmi-nfc-0-boot";
+					reg = <0x00000000 0x01400000>;
+					read-only;
 				};
-
-				led_pins_cfa10036: leds-10036@0 {
-					reg = <0>;
-					fsl,pinmux-ids = <
-						0x3043 /* MX28_PAD_AUART1_RX__GPIO_3_4 */
-					>;
-					fsl,drive-strength = <0>;
-					fsl,voltage = <1>;
-					fsl,pull-up = <0>;
+				partition@1 {
+					label = "gpmi-nfc-general-use";
+					reg = <0x01400000 0x0EC00000>;
 				};
-
-				usb0_otg_cfa10036: otg-10036@0 {
-					reg = <0>;
-					fsl,pinmux-ids = <
-						0x0142 /* MX28_PAD_GPMI_READY0__USB0_ID */
-					>;
-					fsl,drive-strength = <0>;
-					fsl,voltage = <1>;
-					fsl,pull-up = <0>;
-				};
-
 			};
 
 			ssp0: ssp@80010000 {
 				compatible = "fsl,imx28-mmc";
 				pinctrl-names = "default";
-				pinctrl-0 = <&mmc0_4bit_pins_a
-					&mmc0_cd_cfg &mmc0_sck_cfg>;
+				pinctrl-0 = <&mmc0_4bit_pins_b
+					&mmc0_sck_cfg>;
 				bus-width = <4>;
+				status = "okay";
+			};
+
+			/* comment out for lack of ssp1 */
+			/*ssp1: ssp@80012000 {
+				compatible = "fsl,imx28-mmc";
+				pinctrl-names = "default";
+				pinctrl-0 = <&mmc1_8bit_pins_a
+					&mmc1_sck_cfg>;
+				bus-width = <8>;
+				//wp-gpios = <&gpio0 28 0>;
+				status = "okay";
+			};*/
+
+			/*
+			 * comment out for lack of spi device attached
+			ssp2: ssp@80014000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,imx28-spi";
+				pinctrl-names = "default";
+				pinctrl-0 = <&spi2_pins_a>;
+				status = "okay";
+			};*/
+
+			pinctrl@80018000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&hog_pins_a>;
+
+				hog_pins_a: hog@0 {
+					reg = <0>;
+					fsl,pinmux-ids = <
+						0x31c3 /* MX28_PAD_PWM3__GPIO_3_28 */
+					>;
+					fsl,drive-strength = <0>;
+					fsl,voltage = <1>;
+					fsl,pull-up = <0>;
+				};
+
+				/*
+				mmc1_8bit_pins_a: mmc1-8bit@0 {
+					reg = <0>;
+					fsl,pinmux-ids = <
+						0x0001 // MX28_PAD_GPMI_D00__SSP1_D0 
+						0x0011 // MX28_PAD_GPMI_D01__SSP1_D1 
+						0x0021 // MX28_PAD_GPMI_D02__SSP1_D2 
+						0x0031 // MX28_PAD_GPMI_D03__SSP1_D3 
+						0x0041 // MX28_PAD_GPMI_D04__SSP1_D4 
+						0x0051 // MX28_PAD_GPMI_D05__SSP1_D5 
+						0x0061 // MX28_PAD_GPMI_D06__SSP1_D6 
+						0x0071 // MX28_PAD_GPMI_D07__SSP1_D7 
+						0x0151 // MX28_PAD_GPMI_RDY1__SSP1_CMD 
+						0x0191 // MX28_PAD_GPMI_WRN__SSP1_SCK 
+					>;
+					fsl,drive-strength = <1>;
+					fsl,voltage = <1>;
+					fsl,pull-up = <1>;
+				};
+				mmc1_sck_cfg: mmc1-sck-cfg {
+					fsl,pinmux-ids = <
+						0x0191
+					>;
+					fsl,drive-strength = <2>;
+					fsl,pull-up = <0>;
+				};
+				*/
+				mmc0_4bit_pins_b: mmc0-4bit@1 {
+					reg = <1>;
+					fsl,pinmux-ids = <
+						0x2000 /* MX28_PAD_SSP0_DATA0__SSP0_D0 */
+						0x2010 /* MX28_PAD_SSP0_DATA1__SSP0_D1 */
+						0x2020 /* MX28_PAD_SSP0_DATA2__SSP0_D2 */
+						0x2030 /* MX28_PAD_SSP0_DATA3__SSP0_D3 */
+						0x2080 /* MX28_PAD_SSP0_CMD__SSP0_CMD */
+						0x20a0 /* MX28_PAD_SSP0_SCK__SSP0_SCK */
+					>;
+					fsl,drive-strength = <1>;
+					fsl,voltage = <1>;
+					fsl,pull-up = <1>;
+				};
+
+				gpmi_pins_evk: gpmi-nand-evk@0 {
+					reg = <0>;
+					fsl,pinmux-ids = <
+						0x0110 /* MX28_PAD_GPMI_CE1N__GPMI_CE1N */
+						0x0150 /* MX28_PAD_GPMI_RDY1__GPMI_READY1 */
+					>;
+					fsl,drive-strength = <0>;
+					fsl,voltage = <1>;
+					fsl,pull-up = <0>;
+				};
+
+				auart4_pins_a: auart4@1 {
+					reg = <0>;
+					fsl,pinmux-ids = <
+						0x3142 /* MX28_PAD_SAIF0_MCLK__AUART4_CTS */
+						0x3152 /* MX28_PAD_SAIF0_LRCLK__AUART4_RTS */
+						0x3162 /* MX28_PAD_SAIF0_BITCLK__AUART4_RX */
+						0x3172 /* MX28_PAD_SAIF0_SDATA0__AUART4_TX */
+					>;
+					fsl,drive-strength = <0>;
+					fsl,voltage = <1>;
+					fsl,pull-up = <0>;
+				};
+
+			};
+
+			can0: can@80032000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&can0_pins_a>;
+				xceiver-supply = <&reg_can0_3v3>;
+				status = "okay";
+			};
+
+			can1: can@80034000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&can1_pins_a>;
+				xceiver-supply = <&reg_can1_3v3>;
 				status = "okay";
 			};
 		};
 
 		apbx@80040000 {
+			lradc@80050000 {
+				status = "okay";
+			};
+
+			i2c0: i2c@80058000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&i2c0_pins_a>;
+				status = "okay";
+
+				hym8653_0: rtc@51 {
+					compatible = "haoyu,hym8653";
+					clkout = <1>;
+					reg = <0x51>;
+				};
+
+				tca6416: gpio@20 {
+					compatible = "ti,tca6416";
+					interrupt-parent = <&gpio0>;
+					interrupts = <16 8>; /* MX28_PAD_GPMI_CE0N__GPIO_0_16, active-low level-sensitive */
+					reg = <0x20>;
+					gpio-controller;
+					#gpio-cells = <2>;
+					interrupt-controller;
+					#interrupt-cells = <2>;
+				};
+			};
+
+			i2c1: i2c@8005a000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&i2c1_pins_a>;
+				status = "okay";
+
+				hym8653_1: rtc@51 {
+					compatible = "haoyu,hym8653";
+					clkout = <0>;
+					reg = <0x51>;
+				};
+
+				mma8653: threeaxis@1d {
+					compatible = "fsl,mma8563";
+					reg = <0x1d>;
+				};
+			};
+
+			auart0: serial@8006a000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&auart0_pins_a>;
+				status = "disabled";
+			};
+
+			auart1: serial@8006c000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&auart1_2pins_a>;
+				status = "okay";
+			};
+
+			auart2: serial@8006e000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&auart2_2pins_a>;
+				status = "okay";
+			};
+
+			auart3: serial@80070000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&auart3_2pins_a>;
+				status = "okay";
+			};
+
+			auart4: serial@80072000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&auart4_pins_a>;
+				status = "okay";
+			};
+
 			duart: serial@80074000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&duart_pins_b>;
 				status = "okay";
 			};
 
-			i2c0: i2c@80058000 {
-				pinctrl-names = "default";
-				pinctrl-0 = <&i2c0_pins_b>;
-				clock-frequency = <400000>;
-				status = "okay";
-
-				ssd1306: oled@3c {
-					compatible = "solomon,ssd1306fb-i2c";
-					pinctrl-names = "default";
-					pinctrl-0 = <&ssd1306_cfa10036>;
-					reg = <0x3c>;
-					reset-gpios = <&gpio2 7 0>;
-					solomon,height = <32>;
-					solomon,width = <128>;
-					solomon,page-offset = <0>;
-				};
-			};
-
 			usbphy0: usbphy@8007c000 {
 				status = "okay";
 			};
 
-			lradc: lradc@80050000 {
+			usbphy1: usbphy@8007e000 {
 				status = "okay";
 			};
 		};
@@ -102,28 +259,45 @@
 
 	ahb@80080000 {
 		usb0: usb@80080000 {
-			pinctrl-names = "default";
-			pinctrl-0 = <&usb0_otg_cfa10036>;
 			status = "okay";
-			dr_mode = "peripheral";
-			phy_type = "utmi";
 		};
-	};
 
-	leds {
-		compatible = "gpio-leds";
-		pinctrl-names = "default";
-		pinctrl-0 = <&led_pins_cfa10036>;
-
-		power {
-			gpios = <&gpio3 4 1>;
-			default-state = "on";
+		usb1: usb@80090000 {
+			status = "okay";
 		};
+
+		mac0: ethernet@800f0000 {
+			phy-mode = "rmii";
+			pinctrl-names = "default";
+			pinctrl-0 = <&mac0_pins_a>;
+			/* phy-supply = <&reg_fec_3v3>; */
+			phy-reset-gpios = <&gpio4 13 0>;
+			phy-reset-duration = <100>;
+			status = "okay";
+		};
+
+	};
+	regulators {
+		compatible = "simple-bus";
+
+		reg_can0_3v3: can0-3v3 {
+			compatible = "regulator-fixed";
+			regulator-name = "can0-3v3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			gpio = <&gpio4 9 0>;
+			enable-active-high;
+		};
+		reg_can1_3v3: can1-3v3 {
+			compatible = "regulator-fixed";
+			regulator-name = "can1-3v3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			gpio = <&gpio0 27 0>;
+			enable-active-high;
+		};
+
 	};
 
-	temp {
-		compatible = "fsl,mxs-internal-temp";
-		io-channels = <&lradc 8>, <&lradc 9>;
-		io-channel-names = "min", "max";
-	};
 };
+
