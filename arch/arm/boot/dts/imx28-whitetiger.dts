@@ -25,7 +25,7 @@
 			gpmi-nand@8000c000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&gpmi_pins_a &gpmi_status_cfg
-					     &gpmi_pins_evk>;
+					     &gpmi_pins_wt>;
 				status = "okay";
 				partition@0 {
 					label = "gpmi-nfc-0-boot";
@@ -36,15 +36,6 @@
 					label = "gpmi-nfc-general-use";
 					reg = <0x01400000 0x0EC00000>;
 				};
-			};
-
-			ssp0: ssp@80010000 {
-				compatible = "fsl,imx28-mmc";
-				pinctrl-names = "default";
-				pinctrl-0 = <&mmc0_4bit_pins_b
-					&mmc0_sck_cfg>;
-				bus-width = <4>;
-				status = "okay";
 			};
 
 			/* comment out for lack of ssp1 */
@@ -110,8 +101,8 @@
 					fsl,pull-up = <0>;
 				};
 				*/
-				mmc0_4bit_pins_b: mmc0-4bit@1 {
-					reg = <1>;
+				mmc0_4bit_pins_wt: mmc0-4bit-wt@0 {
+					reg = <0>;
 					fsl,pinmux-ids = <
 						0x2000 /* MX28_PAD_SSP0_DATA0__SSP0_D0 */
 						0x2010 /* MX28_PAD_SSP0_DATA1__SSP0_D1 */
@@ -125,7 +116,7 @@
 					fsl,pull-up = <1>;
 				};
 
-				gpmi_pins_evk: gpmi-nand-evk@0 {
+				gpmi_pins_wt: gpmi-nand-wt@0 {
 					reg = <0>;
 					fsl,pinmux-ids = <
 						0x0110 /* MX28_PAD_GPMI_CE1N__GPMI_CE1N */
@@ -136,7 +127,7 @@
 					fsl,pull-up = <0>;
 				};
 
-				auart4_pins_a: auart4@1 {
+				auart4_pins_wt: auart4-wt@0 {
 					reg = <0>;
 					fsl,pinmux-ids = <
 						0x3142 /* MX28_PAD_SAIF0_MCLK__AUART4_CTS */
@@ -149,6 +140,15 @@
 					fsl,pull-up = <0>;
 				};
 
+			};
+
+			ssp0: ssp@80010000 {
+				compatible = "fsl,imx28-mmc";
+				pinctrl-names = "default";
+				pinctrl-0 = <&mmc0_4bit_pins_wt
+					&mmc0_sck_cfg>;
+				bus-width = <4>;
+				status = "okay";
 			};
 
 			can0: can@80032000 {
@@ -237,7 +237,7 @@
 
 			auart4: serial@80072000 {
 				pinctrl-names = "default";
-				pinctrl-0 = <&auart4_pins_a>;
+				pinctrl-0 = <&auart4_pins_wt>;
 				status = "okay";
 			};
 

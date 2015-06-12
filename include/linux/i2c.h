@@ -119,6 +119,8 @@ extern s32 i2c_smbus_read_i2c_block_data(const struct i2c_client *client,
 extern s32 i2c_smbus_write_i2c_block_data(const struct i2c_client *client,
 					  u8 command, u8 length,
 					  const u8 *values);
+extern int i2c_master_reg8_send(const struct i2c_client *client, const char reg, const char *buf, int count, int scl_rate);
+extern int i2c_master_reg8_recv(const struct i2c_client *client, const char reg, char *buf, int count, int scl_rate);
 #endif /* I2C */
 
 /**
