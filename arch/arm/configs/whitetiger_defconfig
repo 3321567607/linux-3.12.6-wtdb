@@ -1118,7 +1118,7 @@ CONFIG_WLAN=y
 # CONFIG_USB_NET_RNDIS_WLAN is not set
 # CONFIG_RTL8187 is not set
 # CONFIG_MAC80211_HWSIM is not set
-CONFIG_BCMDHD=y
+CONFIG_BCMDHD=m
 CONFIG_BCMDHD_FW_PATH="/system/etc/firmware/fw_bcmdhd.bin"
 CONFIG_BCMDHD_NVRAM_PATH="/system/etc/firmware/nvram.txt"
 # CONFIG_BCMDHD_OOB is not set
