@@ -2,6 +2,7 @@
 #ifdef CUSTOMER_HW
 #include <osl.h>
 #include <dngl_stats.h>
+#include <hnd_pktq.h>
 #include <dhd.h>
 
 #ifdef CONFIG_MACH_ODROID_4210
