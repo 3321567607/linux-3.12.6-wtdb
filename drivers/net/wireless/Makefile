@@ -53,6 +53,8 @@ obj-$(CONFIG_MAC80211_HWSIM)	+= mac80211_hwsim.o
 
 obj-$(CONFIG_WL_TI)	+= ti/
 
+obj-$(CONFIG_BCMDHD)	+= bcmdhd/
+
 obj-$(CONFIG_MWIFIEX)	+= mwifiex/
 
 obj-$(CONFIG_BRCMFMAC)	+= brcm80211/

@@ -12,6 +12,16 @@ menuconfig INPUT_MISC
 
 if INPUT_MISC
 
+config INPUT_MMA8653_GSENSOR
+	tristate "MMA8653 3-axis accelerometer support"
+	depends on I2C
+	help
+	  Support the Freescale i2c mma865x accelerometer as an input
+	  dvice reporting orientation change.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called mma865x.
+
 config INPUT_88PM860X_ONKEY
 	tristate "88PM860x ONKEY support"
 	depends on MFD_88PM860X
