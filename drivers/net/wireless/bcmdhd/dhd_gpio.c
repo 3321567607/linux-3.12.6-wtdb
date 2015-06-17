@@ -65,9 +65,9 @@ int bcm_wlan_set_power(bool on)
 		if (!gpio_request(WIFI_POWR, "bcm dongle")) {
 			if (!gpio_request(WL_REG_ON, "bcm dongle")) {
 				printk("======== PULL WL_REG_ON HIGH! ========\n");
-				gpio_set_value_cansleep(WIFI_POWR, 0);	/* suplly vddio */
+				gpio_direction_output(WIFI_POWR, 0);	/* suplly vddio */
 				mdelay(100);
-				gpio_set_value_cansleep(WL_REG_ON, 1);	/* inform wifi-IC to power on */
+				gpio_direction_output(WL_REG_ON, 1);	/* inform wifi-IC to power on */
 				//msleep(3000);
 				gpio_free(WL_REG_ON);
 			} else {

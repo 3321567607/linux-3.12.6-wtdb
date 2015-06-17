@@ -237,7 +237,7 @@ static int pca953x_gpio_direction_output(struct gpio_chip *gc,
 
 	chip = container_of(gc, struct pca953x_chip, gpio_chip);
 
-	printk("pca953x set %d to %d\n", (int)off, val);
+	//printk("pca953x direction out %d to %d\n", (int)off, val);
 	mutex_lock(&chip->i2c_lock);
 	/* set output level */
 	if (val)
@@ -320,7 +320,7 @@ static void pca953x_gpio_set_value(struct gpio_chip *gc, unsigned off, int val)
 
 	chip = container_of(gc, struct pca953x_chip, gpio_chip);
 
-	printk("pca953x set %d to %d\n", (int)off, val);
+	//printk("pca953x set %d to %d\n", (int)off, val);
 	mutex_lock(&chip->i2c_lock);
 	if (val)
 		reg_val = chip->reg_output[off / BANK_SZ]
