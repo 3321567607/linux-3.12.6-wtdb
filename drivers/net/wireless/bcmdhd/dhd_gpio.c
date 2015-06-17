@@ -14,6 +14,13 @@
 #define	sdmmc_channel	s3c_device_hsmmc0
 #endif
 
+#ifdef CONFIG_SOC_IMX28
+#include <linux/gpio.h>
+#define WL_REG_ON   243
+#define WIFI_POWR	245
+#endif
+
+
 struct resource dhd_wlan_resources = {0};
 struct wifi_platform_data dhd_wlan_control = {0};
 
@@ -54,15 +61,41 @@ int bcm_wlan_set_power(bool on)
 	int err = 0;
 
 	if (on) {
-		printk("======== PULL WL_REG_ON HIGH! ========\n");
-#ifdef CONFIG_MACH_ODROID_4210
+#ifdef CONFIG_SOC_IMX28
+		if (!gpio_request(WIFI_POWR, "bcm dongle")) {
+			if (!gpio_request(WL_REG_ON, "bcm dongle")) {
+				printk("======== PULL WL_REG_ON HIGH! ========\n");
+				gpio_set_value_cansleep(WIFI_POWR, 0);	/* suplly vddio */
+				mdelay(100);
+				gpio_set_value_cansleep(WL_REG_ON, 1);	/* inform wifi-IC to power on */
+				//msleep(3000);
+				gpio_free(WL_REG_ON);
+			} else {
+				printk("======== Cannot request WIFI_POWR ========\n");
+			}
+			gpio_free(WIFI_POWR);
+		} else {
+			printk("======== Cannot request WL_REG_ON ========\n");
+		}
+
+#elif defined(CONFIG_MACH_ODROID_4210)
 		err = gpio_set_value(EXYNOS4_GPK1(0), 1);
 #endif
 		/* Lets customer power to get stable */
-		mdelay(100);
+		//mdelay(100);
 	} else {
 		printk("======== PULL WL_REG_ON LOW! ========\n");
-#ifdef CONFIG_MACH_ODROID_4210
+#ifdef CONFIG_SOC_IMX28
+		if (!gpio_request(WL_REG_ON, "bcm dongle")) {
+			gpio_set_value_cansleep(WL_REG_ON, 0);	/* inform wifi-IC to power off */
+			gpio_free(WL_REG_ON);
+		}
+
+		if (!gpio_request(WIFI_POWR, "bcm dongle")) {
+			gpio_set_value_cansleep(WIFI_POWR, 1);	/* shut down vddio */
+			gpio_free(WIFI_POWR);
+		}
+#elif defined(CONFIG_MACH_ODROID_4210)
 		err = gpio_set_value(EXYNOS4_GPK1(0), 0);
 #endif
 	}
@@ -70,18 +103,23 @@ int bcm_wlan_set_power(bool on)
 	return err;
 }
 
+extern void mxs_mmc_force_present(int present);
 int bcm_wlan_set_carddetect(bool present)
 {
 	int err = 0;
 
 	if (present) {
 		printk("======== Card detection to detect SDIO card! ========\n");
-#ifdef CONFIG_MACH_ODROID_4210
+#ifdef CONFIG_SOC_IMX28
+		mxs_mmc_force_present(1);
+#elif defined(CONFIG_MACH_ODROID_4210)
 		err = sdhci_s3c_force_presence_change(&sdmmc_channel, 1);
 #endif
 	} else {
 		printk("======== Card detection to remove SDIO card! ========\n");
-#ifdef CONFIG_MACH_ODROID_4210
+#ifdef CONFIG_SOC_IMX28
+		mxs_mmc_force_present(0);
+#elif defined(CONFIG_MACH_ODROID_4210)
 		err = sdhci_s3c_force_presence_change(&sdmmc_channel, 0);
 #endif
 	}

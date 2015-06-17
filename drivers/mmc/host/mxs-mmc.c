@@ -74,7 +74,15 @@ struct mxs_mmc_host {
 	bool				cd_inverted;
 	bool				broken_cd;
 	bool				non_removable;
+
+	bool is_bcmdhd;
+	/* Polling timer */
+	struct timer_list timer;
+	int bcmdhd_present;
+
 };
+
+static int bcmdhd_present = 0;
 
 static int mxs_mmc_get_ro(struct mmc_host *mmc)
 {
@@ -97,9 +105,14 @@ static int mxs_mmc_get_cd(struct mmc_host *mmc)
 	struct mxs_mmc_host *host = mmc_priv(mmc);
 	struct mxs_ssp *ssp = &host->ssp;
 
-	return host->non_removable || host->broken_cd ||
-		!(readl(ssp->base + HW_SSP_STATUS(ssp)) &
-		  BM_SSP_STATUS_CARD_DETECT) ^ host->cd_inverted;
+	if (host->is_bcmdhd) {
+		printk("mmc is bcmdhd, return bcmdhd_present=%d\n", bcmdhd_present);
+		return bcmdhd_present;
+	} else {
+		return host->non_removable || host->broken_cd ||
+			!(readl(ssp->base + HW_SSP_STATUS(ssp)) &
+		  	BM_SSP_STATUS_CARD_DETECT) ^ host->cd_inverted;
+	}
 }
 
 static int mxs_mmc_reset(struct mxs_mmc_host *host)
@@ -136,6 +149,28 @@ static int mxs_mmc_reset(struct mxs_mmc_host *host)
 	writel(ctrl0, ssp->base + HW_SSP_CTRL0);
 	writel(ctrl1, ssp->base + HW_SSP_CTRL1(ssp));
 	return 0;
+}
+
+void mxs_mmc_force_present(int present)
+{
+	bcmdhd_present = present;
+}
+EXPORT_SYMBOL(mxs_mmc_force_present);
+
+
+static void mxs_mmc_detect_poll(unsigned long arg)
+{
+	struct mxs_mmc_host *host = (struct mxs_mmc_host *)arg;
+
+	if (bcmdhd_present != host->bcmdhd_present) {
+		/* Reset MMC block */
+		printk("%s mmc is %s now!\n", __FUNCTION__, bcmdhd_present ? "plugged" : "unplugged");
+		mxs_mmc_reset(host);
+		host->bcmdhd_present = bcmdhd_present;
+		mmc_detect_change(host->mmc, 0);
+	}
+
+	mod_timer(&host->timer, jiffies + MXS_MMC_DETECT_TIMEOUT);
 }
 
 static void mxs_mmc_start_cmd(struct mxs_mmc_host *host,
@@ -653,6 +688,10 @@ static int mxs_mmc_probe(struct platform_device *pdev)
 		mmc->caps |= MMC_CAP_4_BIT_DATA;
 	else if (bus_width == 8)
 		mmc->caps |= MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA;
+	host->is_bcmdhd =  of_property_read_bool(np, "is_bcmdhd");
+	if (host->is_bcmdhd) {
+		mmc->caps &= ~MMC_CAP_NEEDS_POLL;
+	}
 	host->broken_cd = of_property_read_bool(np, "broken-cd");
 	host->non_removable = of_property_read_bool(np, "non-removable");
 	if (host->non_removable)
@@ -672,6 +711,15 @@ static int mxs_mmc_probe(struct platform_device *pdev)
 	mmc->max_blk_count = (ssp_is_old(ssp)) ? 0xff : 0xffffff;
 	mmc->max_req_size = (ssp_is_old(ssp)) ? 0xffff : 0xffffffff;
 	mmc->max_seg_size = dma_get_max_seg_size(ssp->dmach->device->dev);
+
+	if (host->is_bcmdhd) {
+		init_timer(&host->timer);
+		host->bcmdhd_present = 0;
+		host->timer.function = mxs_mmc_detect_poll;
+		host->timer.data = (unsigned long)host;
+		host->timer.expires = jiffies + MXS_MMC_DETECT_TIMEOUT;
+		add_timer(&host->timer);
+	}
 
 	platform_set_drvdata(pdev, mmc);
 

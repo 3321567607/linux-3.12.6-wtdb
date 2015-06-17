@@ -14,7 +14,6 @@ DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DBCMDRIVER                \
 	-DSDTEST -DBDC -DDHD_BCMEVENTS -DPROP_TXSTATUS -DPROP_TXSTATUS_VSDB   \
 	-DWL_SUPPORT_BACKPORTED_KPATCHES -DDHDTCPACK_SUPPRESS                 \
 	-DGET_OTP_MAC_ENABLE -DSET_RANDOM_MAC_SOFTAP                          \
-	-DENABLE_INSMOD_NO_FW_LOAD                                            \
 	-Idrivers/net/wireless/bcmdhd -Idrivers/net/wireless/bcmdhd/include
 
 DHDCFLAGS += \

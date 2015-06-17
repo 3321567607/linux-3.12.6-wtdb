@@ -59,9 +59,14 @@ static void IRQHandler(struct sdio_func *func);
 static void IRQHandlerF2(struct sdio_func *func);
 #endif /* !defined(OOB_INTR_ONLY) */
 static int sdioh_sdmmc_get_cisaddr(sdioh_info_t *sd, uint32 regaddr);
-
+#if defined(ENABLE_INSMOD_NO_FW_LOAD)
 extern int sdio_reset_comm(struct mmc_card *card);
-
+#else
+int sdio_reset_comm(struct mmc_card *card)
+{
+	return 0;
+}
+#endif
 #ifdef GLOBAL_SDMMC_INSTANCE
 extern PBCMSDH_SDMMC_INSTANCE gInstance;
 #endif

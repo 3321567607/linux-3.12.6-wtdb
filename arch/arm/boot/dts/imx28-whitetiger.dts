@@ -149,6 +149,7 @@
 					&mmc0_sck_cfg>;
 				bus-width = <4>;
 				status = "okay";
+				is_bcmdhd;
 			};
 
 			can0: can@80032000 {
