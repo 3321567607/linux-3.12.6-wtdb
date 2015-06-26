@@ -327,6 +327,11 @@ static void __init tx28_post_init(void)
 	pinctrl_put(pctl);
 }
 
+static void __init whitetiger_init(void)
+{
+	// do nothing
+}
+
 static void __init crystalfontz_init(void)
 {
 	update_fec_mac_prop(OUI_CRYSTALFONTZ);
@@ -453,7 +458,9 @@ static void __init mxs_machine_init(void)
 
 	parent = soc_device_to_device(soc_dev);
 
-	if (of_machine_is_compatible("fsl,imx28-evk"))
+	if (of_machine_is_compatible("techsigno,whitetiger"))
+		whitetiger_init();
+	else if  (of_machine_is_compatible("fsl,imx28-evk"))
 		imx28_evk_init();
 	else if (of_machine_is_compatible("bluegiga,apx4devkit"))
 		apx4devkit_init();

@@ -13,8 +13,8 @@
 /include/ "imx28.dtsi"
 
 / {
-	model = "Techsigno CPU-0285-00";
-	compatible = "fsl,imx28-evk", "fsl,imx28";
+	model = "Techsigno CPU-0285-00 Board";
+	compatible = "techsigno,whitetiger", "fsl,imx28";
 
 	memory {
 		reg = <0x40000000 0x50000000>;
@@ -213,9 +213,7 @@
 			};
 
 			auart0: serial@8006a000 {
-				pinctrl-names = "default";
-				pinctrl-0 = <&auart0_pins_a>;
-				status = "disabled";
+				status = "okay";
 			};
 
 			auart1: serial@8006c000 {
@@ -243,8 +241,10 @@
 			};
 
 			duart: serial@80074000 {
-				pinctrl-names = "default";
+				pinctrl-names = "default", "off-mode";
 				pinctrl-0 = <&duart_pins_b>;
+				pinctrl-1 = <&auart0_pins_a>;
+				switch-gpios = <&gpio1 25 1>; /* bank-1 pin-25, active low */
 				status = "okay";
 			};
 

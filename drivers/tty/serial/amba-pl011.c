@@ -55,6 +55,7 @@
 #include <linux/types.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/of_gpio.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/sizes.h>
 #include <linux/io.h>
@@ -167,6 +168,7 @@ struct uart_amba_port {
 	struct pl011_dmarx_data dmarx;
 	struct pl011_dmatx_data	dmatx;
 #endif
+	bool			default_off;
 };
 
 /*
@@ -1479,7 +1481,8 @@ static int pl011_hwinit(struct uart_port *port)
 	int retval;
 
 	/* Optionaly enable pins to be muxed in and configured */
-	pinctrl_pm_select_default_state(port->dev);
+	if (!(uap->default_off))
+		pinctrl_pm_select_default_state(port->dev);
 
 	/*
 	 * Try to enable the clock producer.
@@ -2000,7 +2003,8 @@ static int __init pl011_console_setup(struct console *co, char *options)
 		return -ENODEV;
 
 	/* Allow pins to be muxed in and configured */
-	pinctrl_pm_select_default_state(uap->port.dev);
+	if (!(uap->default_off))
+		pinctrl_pm_select_default_state(uap->port.dev);
 
 	ret = clk_prepare(uap->clk);
 	if (ret)
@@ -2082,6 +2086,51 @@ static int pl011_probe_dt_alias(int index, struct device *dev)
 	return ret;
 }
 
+static void pl011_switch_pins(struct amba_device *dev, struct uart_amba_port *uap)
+{
+	struct device_node *np;
+	struct pinctrl *pctl;
+	enum of_gpio_flags active_low;
+	int active_val;
+	int gpio_val;
+	int switch_gpio;
+
+	np = dev->dev.of_node;
+
+	switch_gpio = of_get_named_gpio_flags(np, "switch-gpios", 0, &active_low);
+	if (switch_gpio > 0) {
+		/* board has a duart-jumper */
+		if (active_low)
+			active_val = 0;
+		else
+			active_val = 1;
+
+		if (!devm_gpio_request_one(&(dev->dev), switch_gpio, GPIOF_DIR_IN, "duart_switch")) {
+			gpio_val = (gpio_get_value(switch_gpio) == 0) ? 0 : 1;
+			if (active_val != gpio_val) {
+				/* current gpio input instructs me to turn off duart gpios */
+				printk("%s: switch:gpio-%d, active-%s, cur-level:%d, duart dying...\n",
+					__FUNCTION__, switch_gpio, active_val ? "high" : "low", gpio_val);
+				msleep(50);
+				pctl = pinctrl_get_select(&(dev->dev), "off-mode");
+				if (IS_ERR(pctl)) {
+					printk("%s: failed to go into \"off-mode\", switch:gpio-%d!\n",
+						__FUNCTION__, switch_gpio);
+				} else {
+					/* succeeded switch to off-mode, replace default state value with off-mode value */
+					uap->default_off = true;
+				}
+			} else {
+				printk("%s: switch:gpio-%d, active-%s, cur-level:%d, duart active!\n",
+					__FUNCTION__, switch_gpio, active_val ? "high" : "low", gpio_val);
+			}
+		} else {
+			printk("%s: failed to request switch:gpio-%d\n", __FUNCTION__, switch_gpio);
+		}
+	} else {
+		printk("%s: board has no duart switch-jumper\n", __FUNCTION__);
+	}
+}
 static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
 {
 	struct uart_amba_port *uap;
@@ -2150,6 +2199,8 @@ static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
 		amba_set_drvdata(dev, NULL);
 		amba_ports[i] = NULL;
 		pl011_dma_remove(uap);
+	} else {
+		pl011_switch_pins(dev, uap);
 	}
  out:
 	return ret;
