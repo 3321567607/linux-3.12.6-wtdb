@@ -22,7 +22,7 @@
 
 	apb@80000000 {
 		apbh@80000000 {
-			gpmi-nand@8000c000 {
+			/*gpmi-nand@8000c000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&gpmi_pins_a &gpmi_status_cfg
 					     &gpmi_pins_wt>;
@@ -36,10 +36,10 @@
 					label = "gpmi-nfc-general-use";
 					reg = <0x01400000 0x0EC00000>;
 				};
-			};
+			};*/
 
 			/* comment out for lack of ssp1 */
-			/*ssp1: ssp@80012000 {
+			ssp1: ssp@80012000 {
 				compatible = "fsl,imx28-mmc";
 				pinctrl-names = "default";
 				pinctrl-0 = <&mmc1_8bit_pins_a
@@ -47,10 +47,8 @@
 				bus-width = <8>;
 				//wp-gpios = <&gpio0 28 0>;
 				status = "okay";
-			};*/
+			};
 
-			/*
-			 * comment out for lack of spi device attached
 			ssp2: ssp@80014000 {
 				#address-cells = <1>;
 				#size-cells = <0>;
@@ -58,11 +56,12 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&spi2_pins_a>;
 				status = "okay";
-			};*/
+			};
 
 			pinctrl@80018000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&hog_pins_a>;
+				/*ext-supply = <&reg_ext_3v3>;*/
 
 				hog_pins_a: hog@0 {
 					reg = <0>;
@@ -74,20 +73,19 @@
 					fsl,pull-up = <0>;
 				};
 
-				/*
 				mmc1_8bit_pins_a: mmc1-8bit@0 {
 					reg = <0>;
 					fsl,pinmux-ids = <
-						0x0001 // MX28_PAD_GPMI_D00__SSP1_D0 
-						0x0011 // MX28_PAD_GPMI_D01__SSP1_D1 
-						0x0021 // MX28_PAD_GPMI_D02__SSP1_D2 
-						0x0031 // MX28_PAD_GPMI_D03__SSP1_D3 
-						0x0041 // MX28_PAD_GPMI_D04__SSP1_D4 
-						0x0051 // MX28_PAD_GPMI_D05__SSP1_D5 
-						0x0061 // MX28_PAD_GPMI_D06__SSP1_D6 
-						0x0071 // MX28_PAD_GPMI_D07__SSP1_D7 
-						0x0151 // MX28_PAD_GPMI_RDY1__SSP1_CMD 
-						0x0191 // MX28_PAD_GPMI_WRN__SSP1_SCK 
+						0x0001 /* MX28_PAD_GPMI_D00__SSP1_D0 */
+						0x0011 /* MX28_PAD_GPMI_D01__SSP1_D1 */
+						0x0021 /* MX28_PAD_GPMI_D02__SSP1_D2 */
+						0x0031 /* MX28_PAD_GPMI_D03__SSP1_D3 */
+						0x0041 /* MX28_PAD_GPMI_D04__SSP1_D4 */
+						0x0051 /* MX28_PAD_GPMI_D05__SSP1_D5 */
+						0x0061 /* MX28_PAD_GPMI_D06__SSP1_D6 */
+						0x0071 /* MX28_PAD_GPMI_D07__SSP1_D7 */
+						0x0151 /* MX28_PAD_GPMI_RDY1__SSP1_CMD */
+						0x0191 /* MX28_PAD_GPMI_WRN__SSP1_SCK */
 					>;
 					fsl,drive-strength = <1>;
 					fsl,voltage = <1>;
@@ -100,7 +98,6 @@
 					fsl,drive-strength = <2>;
 					fsl,pull-up = <0>;
 				};
-				*/
 				mmc0_4bit_pins_wt: mmc0-4bit-wt@0 {
 					reg = <0>;
 					fsl,pinmux-ids = <
@@ -186,7 +183,7 @@
 				tca6416: gpio@20 {
 					compatible = "ti,tca6416";
 					interrupt-parent = <&gpio0>;
-					interrupts = <16 8>; /* MX28_PAD_GPMI_CE0N__GPIO_0_16, active-low level-sensitive */
+					interrupts = <16 8>; // MX28_PAD_GPMI_CE0N__GPIO_0_16, active-low level-sensitive 
 					reg = <0x20>;
 					gpio-controller;
 					#gpio-cells = <2>;
@@ -241,10 +238,11 @@
 			};
 
 			duart: serial@80074000 {
-				pinctrl-names = "default", "off-mode";
+				/*pinctrl-names = "default", "off-mode"; */
+				pinctrl-names = "default";
 				pinctrl-0 = <&duart_pins_b>;
-				pinctrl-1 = <&auart0_pins_a>;
-				switch-gpios = <&gpio1 25 1>; /* bank-1 pin-25, active low */
+				/*pinctrl-1 = <&auart0_pins_a>;*/
+				/*switch-gpios = <&gpio1 25 1>;*/ /* bank-1 pin-25, active low */
 				status = "okay";
 			};
 
@@ -271,7 +269,7 @@
 			phy-mode = "rmii";
 			pinctrl-names = "default";
 			pinctrl-0 = <&mac0_pins_a>;
-			/* phy-supply = <&reg_fec_3v3>; */
+			phy-supply = <&reg_fec_3v3>;
 			phy-reset-gpios = <&gpio4 13 0>;
 			phy-reset-duration = <100>;
 			status = "okay";
@@ -281,6 +279,23 @@
 	regulators {
 		compatible = "simple-bus";
 
+		/*reg_ext_3v3: ext-3v3 {
+			compatible = "regulator-fixed";
+			regulator-name = "ext-3v3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			gpio = <&gpio4 14 0>;
+			enable-active-high;
+		};*/
+
+		reg_fec_3v3: fec-3v3 {
+			compatible = "regulator-fixed";
+			regulator-name = "fec-3v3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			gpio = <&gpio0 26 1>;
+		};
+
 		reg_can0_3v3: can0-3v3 {
 			compatible = "regulator-fixed";
 			regulator-name = "can0-3v3";
@@ -289,6 +304,7 @@
 			gpio = <&gpio4 9 0>;
 			enable-active-high;
 		};
+
 		reg_can1_3v3: can1-3v3 {
 			compatible = "regulator-fixed";
 			regulator-name = "can1-3v3";
