@@ -610,6 +610,35 @@ static const struct of_device_id mxs_mmc_dt_ids[] = {
 };
 MODULE_DEVICE_TABLE(of, mxs_mmc_dt_ids);
 
+static void mxs_reset_mmc_ic(struct device *pdev)
+{
+	int reset_gpio;
+	int reset_duration;
+	enum of_gpio_flags of_flag;
+	unsigned long reset_flag = GPIOF_OUT_INIT_LOW;
+	int normal_level;
+
+	reset_gpio = of_get_named_gpio_flags(pdev->of_node, "mmc-reset-gpios", 0, &of_flag);
+	
+	if (reset_gpio > 0) {
+		if (!of_property_read_u32(pdev->of_node, "mmc-reset-duration", &reset_duration)) {
+			if (OF_GPIO_ACTIVE_LOW == of_flag) {
+				reset_flag = GPIOF_OUT_INIT_LOW;
+				normal_level = 1;
+			} else {
+				reset_flag = GPIOF_OUT_INIT_HIGH;
+				normal_level = 0;
+			}
+
+			if (!devm_gpio_request_one(pdev, reset_gpio, reset_flag, "mmc-reset")) {
+				udelay(reset_duration);
+				gpio_direction_output(reset_gpio, normal_level);
+				devm_gpio_free(pdev, reset_gpio);
+			}
+		}
+	}
+
+}
 static int mxs_mmc_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *of_id =
@@ -656,6 +685,7 @@ static int mxs_mmc_probe(struct platform_device *pdev)
 			goto out_mmc_free;
 		}
 	}
+	mxs_reset_mmc_ic(&(pdev->dev));
 
 	ssp->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(ssp->clk)) {

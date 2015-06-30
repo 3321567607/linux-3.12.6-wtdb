@@ -87,7 +87,7 @@
 						0x0151 /* MX28_PAD_GPMI_RDY1__SSP1_CMD */
 						0x0191 /* MX28_PAD_GPMI_WRN__SSP1_SCK */
 					>;
-					fsl,drive-strength = <1>;
+					fsl,drive-strength = <0>;
 					fsl,voltage = <1>;
 					fsl,pull-up = <1>;
 				};
@@ -95,7 +95,7 @@
 					fsl,pinmux-ids = <
 						0x0191
 					>;
-					fsl,drive-strength = <2>;
+					fsl,drive-strength = <1>;
 					fsl,pull-up = <0>;
 				};
 				mmc0_4bit_pins_wt: mmc0-4bit-wt@0 {
@@ -146,6 +146,8 @@
 					&mmc0_sck_cfg>;
 				bus-width = <4>;
 				status = "okay";
+				mmc-reset-gpios = <&gpio0 28 1>;
+				mmc-reset-duration = <5>;
 				is_bcmdhd;
 			};
 
