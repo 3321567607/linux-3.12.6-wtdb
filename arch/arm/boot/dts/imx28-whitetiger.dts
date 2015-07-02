@@ -38,7 +38,6 @@
 				};
 			};*/
 
-			/* comment out for lack of ssp1 */
 			ssp1: ssp@80012000 {
 				compatible = "fsl,imx28-mmc";
 				pinctrl-names = "default";
@@ -218,6 +217,8 @@
 			auart1: serial@8006c000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&auart1_2pins_a>;
+				halfdup-enable-gpio = <&gpio4 15 1>;	/* low: enable half-duplex */
+				halfdup-rxoff-gpio = <&gpio4 10 0>;		/* high: turn off rx while txing */
 				status = "okay";
 			};
 
@@ -240,11 +241,11 @@
 			};
 
 			duart: serial@80074000 {
-				/*pinctrl-names = "default", "off-mode"; */
-				pinctrl-names = "default";
+				pinctrl-names = "default", "off-mode";
+				/*pinctrl-names = "default";*/
 				pinctrl-0 = <&duart_pins_b>;
-				/*pinctrl-1 = <&auart0_pins_a>;*/
-				/*switch-gpios = <&gpio1 25 1>;*/ /* bank-1 pin-25, active low */
+				pinctrl-1 = <&auart0_pins_a>;
+				switch-gpios = <&gpio1 25 1>; /* bank-1 pin-25, low: duart active */
 				status = "okay";
 			};
 
