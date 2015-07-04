@@ -136,6 +136,16 @@
 					fsl,pull-up = <0>;
 				};
 
+				usb0_otg_pins_a: otg-wt@0 {
+					reg = <0>;
+					fsl,pinmux-ids = <
+						0x2152 /* MX28_PAD_SSP2_SS2__USB0_OVERCURRENT */
+						0x3121 /* MX28_PAD_PWM2__USB0_ID */
+					>;
+					fsl,drive-strength = <2>;
+					fsl,voltage = <1>;
+					fsl,pull-up = <0>;
+				};
 			};
 
 			ssp0: ssp@80010000 {
@@ -262,10 +272,21 @@
 	ahb@80080000 {
 		usb0: usb@80080000 {
 			status = "okay";
+			dr_mode = "otg";
+			/* dr_mode = "peripheral"; */
+			phy_type = "utmi";
+			vbus-supply = <&reg_usb0_vbus>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&usb0_otg_pins_a>;
 		};
 
 		usb1: usb@80090000 {
 			status = "okay";
+			dr_mode = "host";
+			phy_type = "utmi";
+			vbus-supply = <&reg_usb1_vbus>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&usbphy1_pins_a>;
 		};
 
 		mac0: ethernet@800f0000 {
@@ -317,6 +338,23 @@
 			enable-active-high;
 		};
 
+		reg_usb0_vbus: usb0_vbus {
+			compatible = "regulator-fixed";
+			regulator-name = "usb0_vbus";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			gpio = <&gpio4 12 0>;
+			enable-active-high;
+		};
+
+		reg_usb1_vbus: usb1_vbus {
+			compatible = "regulator-fixed";
+			regulator-name = "usb1_vbus";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			gpio = <&gpio4 11 0>;
+			enable-active-high;
+		};
 	};
 
 };
