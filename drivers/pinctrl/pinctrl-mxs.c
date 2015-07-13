@@ -486,92 +486,6 @@ static int mxs_pinctrl_probe_dt(struct platform_device *pdev,
 	return 0;
 }
 
-static irqreturn_t bo_handler(int irq, void *devid)
-{
-	while(1) {
-		printk("wangluheng: irq %d happened\n", irq);
-		msleep(500);
-	}
-
-	return IRQ_HANDLED;
-}
-static void mxs_wlh_request_pwr_bo_irqs(struct device *dev)
-{
-	unsigned int bat_bo_irq = 0;
-	unsigned int vddd_bo_irq = 1;
-	unsigned int vddio_bo_irq = 2;
-	unsigned int vdda_bo_irq = 3;
-	unsigned int vdd5v_do_irq = 4;
-	unsigned int dcdc4p2_bo_irq = 5;
-	unsigned int vdd5v_irq = 6;
-	unsigned int val;
-	void *addr;
-
-	void *pwr_blk_addr = ioremap(0x80044000, 0x2000);
-	void *rtc_blk_addr = ioremap(0x80056000, 0x2000);
-
-	/* enable 5v_droop_irq, vddio_bo_irq, vddd_bo_irq, batt_bo_irq */
-	val = readl(pwr_blk_addr);
-	val |= (1<<21) | (1<<10) | (1<<6) | (1<<12);
-	writel(val, pwr_blk_addr);
-
-	/* clear 5v_bo_pd, register 5v_droop_irq */
-	addr = (void*)((unsigned int)pwr_blk_addr + 0x18);
-	writel((1<<7), addr);
-	devm_request_threaded_irq(dev, vdd5v_do_irq, NULL, bo_handler, 0, "vdd5v_do", dev);
-
-
-	/* clear vddd_bo_pd, register vddd_bo_irq */
-	addr = (void*)((unsigned int)pwr_blk_addr + 0x40);
-	val = readl(addr);
-	val &= ~(1<<23);
-	writel(val,addr);
-	devm_request_threaded_irq(dev, vddd_bo_irq, NULL, bo_handler, 0, "vddd_bo", dev);
-
-	/* clear vddio_bo_pd, register vddio_bo_irq */
-	addr = (void*)((unsigned int)pwr_blk_addr + 0x60);
-	val = readl(addr);
-	val &= ~(1<<18);
-	writel(val,addr);
-	devm_request_threaded_irq(dev, vddio_bo_irq, NULL, bo_handler, 0, "vddio_bo", dev);
-
-	addr = (void*)((unsigned int)pwr_blk_addr + 0xe0);
-	val = readl(addr);
-	val &= ~(1<<9);
-	writel(val, addr);
-	devm_request_threaded_irq(dev, bat_bo_irq, NULL, bo_handler, 0, "batt_bo", dev);
-	//printk("wangluheng: value of BATT_MONITOR: 0x%08x\n", val);
-
-
-	/*val = readl(pwr_blk_addr);
-	printk("wangluheng: value of PWR_CTRL: 0x%08x\n", val);
-
-	addr = (void*)((unsigned int)pwr_blk_addr + 0x10);
-	val = readl(addr);
-	printk("wangluheng: value of 5V_CTRL: 0x%08x\n", val);
-
-	addr = (void*)((unsigned int)pwr_blk_addr + 0x40);
-	val = readl(addr);
-	printk("wangluheng: value of VDDD_CTRL: 0x%08x\n", val);
-
-	addr = (void*)((unsigned int)pwr_blk_addr +0x50);
-	val = readl(addr);
-	printk("wangluheng: value of VDDA_CTRL: 0x%08x\n", val);
-
-	addr = (void*)((unsigned int)pwr_blk_addr + 0x60);
-	val = readl(addr);
-	printk("wangluheng: value of VDDIO_CTRL: 0x%08x\n", val);
-
-	addr = ((unsigned int)pwr_blk_addr + 0x80);
-	val = readl(addr);
-	printk("wangluheng: value of 4P2_CTRL: 0x%08x\n", val);
-
-	addr = ((unsigned int)rtc_blk_addr + 0x60);
-	val = readl(addr);
-	printk("wangluheng: value of persistent0: 0x%08x\n", val);*/
-
-}
-
 int mxs_pinctrl_probe(struct platform_device *pdev,
 		      struct mxs_pinctrl_soc_data *soc)
 {
@@ -608,7 +522,6 @@ int mxs_pinctrl_probe(struct platform_device *pdev,
 		ret = -EINVAL;
 		goto err;
 	}
-	//mxs_wlh_request_pwr_bo_irqs(&(pdev->dev));
 
 	return 0;
 
