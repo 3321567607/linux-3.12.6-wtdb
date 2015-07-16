@@ -63,16 +63,7 @@ ddi_bc_BatteryMode_t ddi_bc_hwGetBatteryMode(void)
 
 
 
-/*  */
-/* brief Report the voltage across the battery. */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function reports the voltage across the battery. */
-/*  */
-/* retval The voltage across the battery, in mV. */
-/*  */
-
+/* [luheng] read from reg current battery voltage */
 uint16_t ddi_bc_hwGetBatteryVoltage(void)
 {
 	/* TODO: replace ddi_bc_hwGetBattery with function below */
@@ -80,19 +71,9 @@ uint16_t ddi_bc_hwGetBatteryVoltage(void)
 }
 
 
-/*  */
-/* brief Report on the presence of the power supply. */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function repots on whether or not the 5V power supply is present. */
-/*  */
-/* retval  Zero if the power supply is not present. Non-zero otherwise. */
-/*  */
-
+/* [luheng] check if 5v is present */
 int ddi_bc_hwPowerSupplyIsPresent(void)
 {
-	/* TODO: replace ddi_bc_hwPowerSupplyIsPresent with the functino below. */
 	return (int)ddi_power_Get5vPresentFlag();
 }
 
@@ -109,31 +90,10 @@ uint16_t ddi_bc_hwSetMaxCurrent(uint16_t u16Limit)
 	return ddi_power_SetMaxBatteryChargeCurrent(u16Limit);
 }
 
-
-/*  */
-/* brief Set the charging current threshold. */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function sets the charging current threshold. When the actual current */
-/*  flow to the battery is less than this threshold, the HW_POWER_STS.CHRGSTS */
-/*  flag is clear. */
-/*  */
-/*  Note that the hardware has a minimum resolution of 10mA and a maximum */
-/*  expressible value of 180mA (see the data sheet for details). If the given */
-/*  current cannot be expressed exactly, then the largest expressible smaller */
-/*  value will be used. The return reports the actual value that was effected. */
-/*  */
-/* param[in]  u16Threshold  The charging current threshold, in mA. */
-/*  */
-/* retval  The actual value that was effected. */
-/*  */
-
+/* [luheng] set hw stop-charging lower thresh, unit:mA */
 uint16_t ddi_bc_hwSetCurrentThreshold(uint16_t u16Threshold)
 {
-	/* TODO: replace calls to ddi_bc_hwSetCurrentThreshold with the one below */
 	return ddi_power_SetBatteryChargeCurrentThreshold(u16Threshold);
-
 }
 
 
@@ -192,63 +152,23 @@ void ddi_bc_hwSetChargerPower(int on)
 	ddi_power_SetChargerPowered(on);
 }
 
-
-/*  */
-/* brief Reports if the charging current has fallen below the threshold. */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function reports if the charging current that the battery is accepting */
-/*  has fallen below the threshold. */
-/*  */
-/*  Note that this bit is regarded by the hardware guys as very slightly */
-/*  unreliable. They recommend that you don't believe a value of zero until */
-/*  you've sampled it twice. */
-/*  */
-/* retval  Zero if the battery is accepting less current than indicated by the */
-/*           charging threshold. Non-zero otherwise. */
-/*  */
-
+/* [luheng] read from hw reg if charger is actualling delivering current to batt */
 int ddi_bc_hwGetChargeStatus(void)
 {
 	return ddi_power_GetChargeStatus();
 }
 
 
-/*  */
-/* brief Report on the die temperature. */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function reports on the die temperature. */
-/*  */
-/* param[out]  pLow   The low  end of the temperature range. */
-/* param[out]  pHigh  The high end of the temperature range. */
-/*  */
-
+/* [luheng] get current die temp in celsius degree. */
+/*     pLow   The low  end of the temperature range. */
+/*     pHigh  The high end of the temperature range. */
 void ddi_bc_hwGetDieTemp(int16_t *pLow, int16_t *pHigh)
 {
-	/* TODO: replace ddi_bc_hwGetDieTemp with function below */
 	ddi_power_GetDieTemp(pLow, pHigh);
 }
 
 
-/*  */
-/* brief Report the battery temperature reading. */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function examines the configured LRADC channel and reports the battery */
-/*  temperature reading. */
-/*  */
-/* param[out]  pReading  A pointer to a variable that will receive the */
-/*                         temperature reading. */
-/*  */
-/* retval  DDI_BC_STATUS_SUCCESS          If the operation succeeded. */
-/* retval  DDI_BC_STATUS_NOT_INITIALIZED  If the Battery Charger is not yet */
-/*                                          initialized. */
-/*  */
-
+/* [luheng] return external temp thermistor's ohm value attached on physical lradc chan-0 */
 ddi_bc_Status_t ddi_bc_hwGetBatteryTemp(uint16_t *pReading)
 {
 	ddi_power_GetBatteryTemp(pReading);

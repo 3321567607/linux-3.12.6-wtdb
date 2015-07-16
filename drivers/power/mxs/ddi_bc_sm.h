@@ -38,6 +38,7 @@ extern ddi_bc_State_t g_ddi_bc_State;
 /*  The state function table. */
 
 extern ddi_bc_Status_t(*const (stateFunctionTable[])) (void);
+extern char *ddi_bc_state_names[];
 
 
 /* End of file */

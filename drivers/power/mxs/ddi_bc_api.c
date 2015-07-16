@@ -87,41 +87,19 @@ void ddi_bc_ShutDown()
 
 }
 
-
-
-/* brief Advances the state machine. */
-
-/* fntype Function */
-
-/* This function advances the state machine. */
-
-/* retval DDI_BC_STATUS_SUCCESS          If all goes well */
-/* retval DDI_BC_STATUS_NOT_INITIALIZED  If the Battery Charger is not yet */
-/*                                        initialized. */
-/* retval DDI_BC_STATUS_BROKEN           If the battery violated a time-out */
-/*                                        and has been declared broken. */
-
-
+/* [luheng] call state handler specified by current state 'g_ddi_bc_State' */
 ddi_bc_Status_t ddi_bc_StateMachine()
 {
-	int ret, state;
+	int ret, oldstate;
 
-	/* -------------------------------------------------------------------------- */
-	/* Check if we've been initialized yet. */
-	/* -------------------------------------------------------------------------- */
-
-	if (g_ddi_bc_State == DDI_BC_STATE_UNINITIALIZED) {
+	if (g_ddi_bc_State == DDI_BC_STATE_UNINITIALIZED)
 		return DDI_BC_STATUS_NOT_INITIALIZED;
-	}
-	/* -------------------------------------------------------------------------- */
-	/* Execute the function for the current state. */
-	/* -------------------------------------------------------------------------- */
 
-	state = g_ddi_bc_State;
+	oldstate = g_ddi_bc_State;
 	ret = (stateFunctionTable[g_ddi_bc_State] ());
-	if (state != g_ddi_bc_State)
-		pr_debug("Charger: transit from state %d to %d\n",
-			state, g_ddi_bc_State);
+	if (oldstate != g_ddi_bc_State)
+		pr_debug("Charger: transit from state %s to %s\n",
+		    ddi_bc_state_names[oldstate], ddi_bc_state_names[g_ddi_bc_State]);
 	return ret;
 
 }
@@ -158,99 +136,43 @@ ddi_bc_State_t ddi_bc_GetState()
 /* retval DDI_BC_STATUS_SUCCESS          If all goes well */
 /* retval DDI_BC_STATUS_NOT_INITIALIZED  If the Battery Charger is not yet */
 /*                                        initialized. */
-
-
 ddi_bc_Status_t ddi_bc_SetDisable()
 {
-
-	/* -------------------------------------------------------------------------- */
-	/* Check if we've been initialized yet. */
-	/* -------------------------------------------------------------------------- */
-
-	if (g_ddi_bc_State == DDI_BC_STATE_UNINITIALIZED) {
+	if (g_ddi_bc_State == DDI_BC_STATE_UNINITIALIZED)
 		return DDI_BC_STATUS_NOT_INITIALIZED;
-	}
-	/* -------------------------------------------------------------------------- */
-	/* Check if we've been initialized yet. */
-	/* -------------------------------------------------------------------------- */
 
-	if (g_ddi_bc_State == DDI_BC_STATE_BROKEN) {
+	if (g_ddi_bc_State == DDI_BC_STATE_BROKEN)
 		return DDI_BC_STATUS_BROKEN;
-	}
-	/* -------------------------------------------------------------------------- */
-	/* Reset the current ramp. This will jam the current to zero and power off */
-	/* the charging hardware. */
-	/* -------------------------------------------------------------------------- */
 
 	ddi_bc_RampReset();
 
-	/* -------------------------------------------------------------------------- */
-	/* Reset the state timer. */
-	/* -------------------------------------------------------------------------- */
-
 	g_ddi_bc_u32StateTimer = 0;
 
-	/* -------------------------------------------------------------------------- */
-	/* Move to the Disabled state. */
-	/* -------------------------------------------------------------------------- */
-
 	g_ddi_bc_State = DDI_BC_STATE_DISABLED;
-
-	/* -------------------------------------------------------------------------- */
-	/* Return success. */
-	/* -------------------------------------------------------------------------- */
 
 	return DDI_BC_STATUS_SUCCESS;
 
 }
 
 
-
-/* brief Enable the Battery Charger. */
-
-/* fntype Function */
-
-/* If the Battery Charger is in the Disabled state, this function moves it to */
-/* the Waiting to Charge state. */
-
-/* retval DDI_BC_STATUS_SUCCESS          If all goes well */
-/* retval DDI_BC_STATUS_NOT_INITIALIZED  If the Battery Charger is not yet */
-/*                                        initialized. */
-/* retval DDI_BC_STATUS_NOT_DISABLED     If the Battery Charger is not */
-/*                                        disabled. */
-
-
+/*
+ * set:
+ *     g_ddi_bc_u32StateTimer = 0;
+ *     g_ddi_bc_State = DDI_BC_STATE_WAITING_TO_CHARGE;
+ *
+ * before this calling, g_ddi_bc_State should be DDI_BC_STATE_DISABLED, otherwise not set
+ */
 ddi_bc_Status_t ddi_bc_SetEnable()
 {
-
-	/* -------------------------------------------------------------------------- */
-	/* Check if we've been initialized yet. */
-	/* -------------------------------------------------------------------------- */
-
-	if (g_ddi_bc_State == DDI_BC_STATE_UNINITIALIZED) {
+	if (g_ddi_bc_State == DDI_BC_STATE_UNINITIALIZED)
 		return DDI_BC_STATUS_NOT_INITIALIZED;
-	}
-	/* -------------------------------------------------------------------------- */
-	/* If we're not in the Disabled state, this is pointless. */
-	/* -------------------------------------------------------------------------- */
 
-	if (g_ddi_bc_State != DDI_BC_STATE_DISABLED) {
+	if (g_ddi_bc_State != DDI_BC_STATE_DISABLED)
 		return DDI_BC_STATUS_NOT_DISABLED;
-	}
-	/* -------------------------------------------------------------------------- */
-	/* Reset the state timer. */
-	/* -------------------------------------------------------------------------- */
 
 	g_ddi_bc_u32StateTimer = 0;
-	/* -------------------------------------------------------------------------- */
-	/* Move to the Waiting to Charge state. */
-	/* -------------------------------------------------------------------------- */
 
 	g_ddi_bc_State = DDI_BC_STATE_WAITING_TO_CHARGE;
-
-	/* -------------------------------------------------------------------------- */
-	/* Return success. */
-	/* -------------------------------------------------------------------------- */
 
 	return DDI_BC_STATUS_SUCCESS;
 
@@ -383,13 +305,7 @@ ddi_bc_Status_t ddi_bc_SetFixed()
 
 uint16_t ddi_bc_SetCurrentLimit(uint16_t u16Limit)
 {
-
-	/* -------------------------------------------------------------------------- */
-	/* Set the limit and return what is actually expressible. */
-	/* -------------------------------------------------------------------------- */
-
 	return ddi_bc_RampSetLimit(u16Limit);
-
 }
 
 

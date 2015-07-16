@@ -51,6 +51,8 @@ enum MXS_PWR_IRQ_INDEX_type {
 #define LRADC_DELAY_TRIGGER_DIE		2
 #define LRADC_DELAY_TRIGGER_BATTERY	3
 
+#define MXSDELTA(now,old) ((now) > (old)) ? ((now) - (old)) : ((0xFFFFFFFF - (old)) + (now))
+
 #define WR_PWR_REG(val,addr) (__raw_writel((val), mxs_pwr_base + (addr)))
 #define RD_PWR_REG(addr) (__raw_readl(mxs_pwr_base + (addr)))
 

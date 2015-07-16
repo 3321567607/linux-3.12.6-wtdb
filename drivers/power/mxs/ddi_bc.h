@@ -23,21 +23,13 @@
 
 /* brief Defines battery charger states. */
 typedef enum _ddi_bc_State {
-	/* brief TBD */
 	DDI_BC_STATE_UNINITIALIZED = 0,
-	/* brief TBD */
 	DDI_BC_STATE_BROKEN = 1,
-	/* brief TBD */
 	DDI_BC_STATE_DISABLED = 2,
-	/* brief TBD */
 	DDI_BC_STATE_WAITING_TO_CHARGE = 3,
-	/* brief TBD */
 	DDI_BC_STATE_CONDITIONING = 4,
-	/* brief TBD */
 	DDI_BC_STATE_CHARGING = 5,
-	/* brief TBD */
 	DDI_BC_STATE_TOPPING_OFF = 6,
-	/* brief TBD */
 	DDI_BC_STATE_DCDC_MODE_WAITING_TO_CHARGE = 7,
 
 } ddi_bc_State_t;

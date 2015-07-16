@@ -359,7 +359,9 @@ void ddi_power_EnableVbusDroopIrq(void)
 	WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDD5V_DROOP, HW_POWER_CTRL_SET);
 }
 
-/* [luheng] turn on 5v -> charger_&_4p2 -> DCDC, if battery not damaged; or just enable batt-BO irq if batt damaged */
+/* [luheng] turn on 5v -> charger_&_4p2 -> DCDC, if battery not damaged; or just enable batt-BO irq if batt damaged
+ * 5v -> charger_&_4p2 current limit: 'target_current_limit_ma'
+ */
 void ddi_power_Enable4p2(uint16_t target_current_limit_ma)
 {
 	uint32_t temp_reg;
@@ -557,20 +559,21 @@ int ddi_power_init_battery(void)
 }
 
 /*
- * Use the the lradc channel
- * get the die temperature from on-chip sensor.
+ * [luheng] use lradc physical channel 8,9 to measure die temp. unit:??
+ * g_ddi_bc_Configuration.u8DieTempChannel specifies the logic channel we temporarily use.
  */
 uint16_t MeasureInternalDieTemperature(void)
 {
 	uint32_t  ch8Value, ch9Value, lradc_irq_mask, channel;
 
+	/* logic channel */
 	channel = g_ddi_bc_Configuration.u8DieTempChannel;
 	lradc_irq_mask = 1 << channel;
 
 	/* power up internal tep sensor block */
 	WR_LRADC_REG(BM_LRADC_CTRL2_TEMPSENSE_PWD, HW_LRADC_CTRL2_CLR);
 
-	/* mux to the lradc 8th temp channel */
+	/* mux to physical lradc channel-8, temp channel */
 	WR_LRADC_REG((0xF << (4 * channel)), HW_LRADC_CTRL4_CLR);
 	WR_LRADC_REG((8 << (4 * channel)), HW_LRADC_CTRL4_SET);
 
@@ -591,7 +594,7 @@ uint16_t MeasureInternalDieTemperature(void)
 
 	WR_LRADC_REG(BM_LRADC_CHn_VALUE, HW_LRADC_CHn_CLR(channel));
 
-	/* mux to the lradc 9th temp channel */
+	/* mux to physical lradc channel-9, temp channel */
 	WR_LRADC_REG((0xF << (4 * channel)), HW_LRADC_CTRL4_CLR);
 	WR_LRADC_REG((9 << (4 * channel)), HW_LRADC_CTRL4_SET);
 
@@ -624,59 +627,54 @@ uint16_t MeasureInternalDieTemperature(void)
  * which attached to LRADC0. This function returns the thermister
  * resistance value in ohm. Please check the specifiction of the
  * thermister to convert the resistance value to temperature.
+ *
+ * g_ddi_bc_Configuration.u8BatteryTempChannel, logic lradc channel to measure batt temp
  */
-
 #define NUM_TEMP_READINGS_TO_AVG 3
 uint16_t MeasureInternalBatteryTemperature(void)
 {
 	uint32_t  value, lradc_irq_mask, channel, sum = 0;
-  uint16_t  out_value;
-  int i;
+	uint16_t  out_value;
+	int i;
 
 	channel = g_ddi_bc_Configuration.u8BatteryTempChannel;
 	lradc_irq_mask = 1 << channel;
 
-  /* Enable the temperature sensor. */
+	/* Enable the temperature sensor. */
 	WR_LRADC_REG(BM_LRADC_CTRL2_TEMPSENSE_PWD, HW_LRADC_CTRL2_CLR);
 
-
-  /*Setup the temperature sensor for current measurement.
-   100uA is used for thermistor  */
-
+	/* 100uA is output to physical lradc chan-0 */
 	WR_LRADC_REG(BF_LRADC_CTRL2_TEMP_ISRC0(BV_LRADC_CTRL2_TEMP_ISRC0__100), HW_LRADC_CTRL2_SET);
 	WR_LRADC_REG(BM_LRADC_CTRL2_TEMP_SENSOR_IENABLE0, HW_LRADC_CTRL2_SET);
 
-  /* Wait while the current ramps up.  */
-  msleep(1);
+	/* Wait while the current ramps up.  */
+	msleep(1);
 
-
-  /* mux analog input lradc 0 for conversion on LRADC channel . */
-
-  WR_LRADC_REG((0xF << (4 * channel)), HW_LRADC_CTRL4_CLR);
-  WR_LRADC_REG((0 << (4 * channel)), HW_LRADC_CTRL4_SET);
-
+	/* mux logic chan to physical lradc 0 for conversion on LRADC channel . */
+	WR_LRADC_REG((0xF << (4 * channel)), HW_LRADC_CTRL4_CLR);
+	WR_LRADC_REG((0 << (4 * channel)), HW_LRADC_CTRL4_SET);
 
 	for (i = 0; i < NUM_TEMP_READINGS_TO_AVG; i++) {
 		/* Clear the interrupt flag */
-    WR_LRADC_REG(lradc_irq_mask, HW_LRADC_CTRL1_CLR);
-    WR_LRADC_REG(BF_LRADC_CTRL0_SCHEDULE(1 << channel), HW_LRADC_CTRL0_SET);
+		WR_LRADC_REG(lradc_irq_mask, HW_LRADC_CTRL1_CLR);
+		WR_LRADC_REG(BF_LRADC_CTRL0_SCHEDULE(1 << channel), HW_LRADC_CTRL0_SET);
 
-    /* Wait for conversion complete*/
-    while (!(RD_LRADC_REG(HW_LRADC_CTRL1) & lradc_irq_mask))
-				cpu_relax();
+		/* Wait for conversion complete*/
+		while (!(RD_LRADC_REG(HW_LRADC_CTRL1) & lradc_irq_mask))
+			cpu_relax();
 
-    /* Clear the interrupt flag again */
-    WR_LRADC_REG(lradc_irq_mask, HW_LRADC_CTRL1_CLR);
+		/* Clear the interrupt flag again */
+		WR_LRADC_REG(lradc_irq_mask, HW_LRADC_CTRL1_CLR);
 
-    /* read temperature value and clr lradc */
-    value = RD_LRADC_REG(HW_LRADC_CHn(channel)) & BM_LRADC_CHn_VALUE;
+		/* read temperature value and clr lradc */
+		value = RD_LRADC_REG(HW_LRADC_CHn(channel)) & BM_LRADC_CHn_VALUE;
 
-    WR_LRADC_REG(BM_LRADC_CHn_VALUE, HW_LRADC_CHn_CLR(channel));
+		WR_LRADC_REG(BM_LRADC_CHn_VALUE, HW_LRADC_CHn_CLR(channel));
 
-    sum += value;
+		sum += value;
   }
 
-  /* Turn off the current to the temperature sensor to save power */
+	/* Turn off the current to the temperature sensor to save power */
 
 	WR_LRADC_REG(BF_LRADC_CTRL2_TEMP_ISRC0(BV_LRADC_CTRL2_TEMP_ISRC0__ZERO), HW_LRADC_CTRL2_SET);
 
@@ -686,14 +684,14 @@ uint16_t MeasureInternalBatteryTemperature(void)
 	WR_LRADC_REG(BM_LRADC_CTRL2_TEMPSENSE_PWD, HW_LRADC_CTRL2_SET);
 
 
-  /* Take the voltage average.  */
-  value = sum/NUM_TEMP_READINGS_TO_AVG;
+	/* Take the voltage average.  */
+	value = sum/NUM_TEMP_READINGS_TO_AVG;
 
-  /* convert the voltage to thermister resistance value in 10ohm.  */
-  /* ohm = (ADC value) * 1.85/(2^12) / current 100uA  */
-  value = value * 18500/4096;
+	/* convert the voltage to thermister resistance value in 10ohm.  */
+	/* ohm = (ADC value) * 1.85/(2^12) / current 100uA  */
+	value = value * 18500/4096;
 
-  out_value = value/10;
+	out_value = value/10;
 
 	return out_value;
 }
@@ -733,7 +731,7 @@ int ddi_power_GetChargeStatus(void)
 	return (RD_PWR_REG(HW_POWER_STS) & BM_POWER_STS_CHRGSTS) ? 1 : 0;
 }
 
-/* [luheng] read battery voltage, unit:mv */
+/* [luheng] read hw battery voltage, unit:mv */
 #define BATT_VOLTAGE_8_MV 8
 uint16_t ddi_power_GetBattery(void)
 {
@@ -823,14 +821,7 @@ bool ddi_power_Get5vPresentFlag(void)
 	return 0;
 }
 
-/* brief Report on the die temperature. */
-/*  */
-/*  This function reports on the die temperature. */
-/*  */
-/* param[out]  pLow   The low  end of the temperature range. */
-/* param[out]  pHigh  The high end of the temperature range. */
-/*  */
-/* Temperature constant */
+/* [luheng] return current celsus degree of die temperature. pLow: lower margin, pHigh: higher margin */
 #define TEMP_READING_ERROR_MARGIN 5
 #define KELVIN_TO_CELSIUS_CONST 273
 void ddi_power_GetDieTemp(int16_t *pLow, int16_t *pHigh)
@@ -854,7 +845,7 @@ void ddi_power_GetDieTemp(int16_t *pLow, int16_t *pHigh)
 	*pLow  = i16Low;
 }
 
-
+/* [luheng] return current thermistor ohm value, unit: ohm */
 void ddi_power_GetBatteryTemp(uint16_t *pReading)
 {
 	*pReading = MeasureInternalBatteryTemperature();
@@ -1074,8 +1065,10 @@ void ddi_power_enable_vddio_interrupt(bool enable)
  */
 void ddi_power_handle_vddio_brnout(void)
 {
-	if (    (ddi_power_GetPmu5vStatus() == new_5v_connection)
-		 || (ddi_power_GetPmu5vStatus() == new_5v_disconnection)) {
+	enum ddi_power_5v_status state5v = ddi_power_GetPmu5vStatus();
+
+	if (    (state5v == new_5v_connection)
+		 || (state5v == new_5v_disconnection)) { /* it's a flase detection caused by 5v detach/attach */
 		ddi_power_enable_vddio_interrupt(false);
 	} else {
 		ddi_power_shutdown();
