@@ -74,7 +74,7 @@ static void transtate(ddi_bc_State_t newstate, uint16_t charging_current, uint16
 	if (charging_current) {
 		ddi_bc_RampSetTarget(charging_current);
 		if (stop_thresh) {
-			ddi_bc_hwSetCurrentThreshold(stop_thresh);
+			ddi_power_SetBatteryChargeCurrentThreshold(stop_thresh);
 		}
 	} else {
 		ddi_bc_RampReset();
@@ -110,14 +110,14 @@ static ddi_bc_Status_t ddi_bc_WaitingToCharge(void)
 
 	g_ddi_bc_u32StateTimer += LOOP_INTV;
 
-	if (!ddi_bc_hwPowerSupplyIsPresent()) {
+	if (!ddi_power_Get5vPresentFlag()) {
 #ifdef CONFIG_POWER_SUPPLY_DEBUG
 		u16ExternalBatteryPowerVoltageCheck = 0;
 #endif
 		return DDI_BC_STATUS_SUCCESS;
 	}
 
-	u16BatteryVoltage = ddi_bc_hwGetBatteryVoltage();
+	u16BatteryVoltage = ddi_power_GetBattery();
 
 #ifdef CONFIG_POWER_SUPPLY_DEBUG
 	if (u16ExternalBatteryPowerVoltageCheck) {
@@ -167,12 +167,12 @@ static ddi_bc_Status_t ddi_bc_Conditioning(void)
 		g_ddi_bc_u32StateTimer += LOOP_INTV;
 	}
 
-	if (!ddi_bc_hwPowerSupplyIsPresent()) {
+	if (!ddi_power_Get5vPresentFlag()) {
 		TransitionToWaitingToCharge();
 		return DDI_BC_STATUS_SUCCESS;
 	}
 
-	if (    (ddi_bc_hwGetBatteryVoltage() > g_ddi_bc_Configuration.u16ConditioningMaxVoltage)
+	if (    (ddi_power_GetBattery() > g_ddi_bc_Configuration.u16ConditioningMaxVoltage)
 	     && (ddi_power_GetMaxBatteryChargeCurrent() < g_ddi_bc_Configuration.u16ConditioningCurrent))
 	{
 		/* rise over upper level before ramping done, too quickly, must be no batt */
@@ -181,7 +181,7 @@ static ddi_bc_Status_t ddi_bc_Conditioning(void)
 		return DDI_BC_STATUS_BROKEN;
 	}
 
-	if (ddi_bc_hwGetBatteryVoltage() >= g_ddi_bc_Configuration.u16ConditioningMaxVoltage) {
+	if (ddi_power_GetBattery() >= g_ddi_bc_Configuration.u16ConditioningMaxVoltage) {
 		TransitionToCharging();
 		return DDI_BC_STATUS_SUCCESS;
 	}
@@ -217,25 +217,25 @@ static ddi_bc_Status_t ddi_bc_Charging(void)
 		g_ddi_bc_u32StateTimer += LOOP_INTV;
 	}
 	
-	if (!ddi_bc_hwPowerSupplyIsPresent()) { /* -> 'waiting_to_charging' if 5v is removed */
+	if (!ddi_power_Get5vPresentFlag()) { /* -> 'waiting_to_charging' if 5v is removed */
 		TransitionToWaitingToCharge();
 		return DDI_BC_STATUS_SUCCESS;
 	}
 
-	ddi_bc_hwSetCurrentThreshold(g_ddi_bc_Configuration.u16ChargingThresholdCurrent);
+	ddi_power_SetBatteryChargeCurrentThreshold(g_ddi_bc_Configuration.u16ChargingThresholdCurrent);
 
-	u16ActualProgrammedCurrent = ddi_bc_hwGetMaxCurrent();
+	u16ActualProgrammedCurrent = ddi_power_GetMaxBatteryChargeCurrent();
 	u16CurrentRampTarget = ddi_bc_RampGetTarget();
 
 	if (u16CurrentRampTarget > ddi_bc_RampGetLimit())
 		u16CurrentRampTarget = ddi_bc_RampGetLimit();
 
-	u16CurrentRampTarget = ddi_bc_hwExpressibleCurrent(u16CurrentRampTarget);
+	u16CurrentRampTarget = ddi_power_ExpressibleCurrent(u16CurrentRampTarget);
 
-	if ((u16ActualProgrammedCurrent >= u16CurrentRampTarget) && !ddi_bc_hwGetChargeStatus()) {
+	if ((u16ActualProgrammedCurrent >= u16CurrentRampTarget) && !ddi_power_GetChargeStatus()) {
 		if ((++iStatusCount) >= 10) {
 #ifdef CONFIG_POWER_SUPPLY_DEBUG
-			u16ExternalBatteryPowerVoltageCheck = ddi_bc_hwGetBatteryVoltage();
+			u16ExternalBatteryPowerVoltageCheck = ddi_power_GetBattery();
 #endif
 			iStatusCount = 0;
 			TransitionToToppingOff();   /* -> 'topping_off' if charger stopped at target current */
@@ -275,7 +275,7 @@ static ddi_bc_Status_t ddi_bc_ToppingOff(void)
 	}
 
 	/* -> waiting_to_charge if 1) 5v removed; 2) has stayed in this state long enough */
-	if (    (!ddi_bc_hwPowerSupplyIsPresent())
+	if (    (!ddi_power_Get5vPresentFlag())
 	     || (g_ddi_bc_u32StateTimer >= g_ddi_bc_Configuration.u32TopOffPeriod)
 	   )
 	{

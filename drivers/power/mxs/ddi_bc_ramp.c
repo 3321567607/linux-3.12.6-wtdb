@@ -80,7 +80,7 @@ uint16_t ddi_bc_RampSetTarget(uint16_t u16Target)
 
 	ddi_bc_RampStep(0);
 
-	return ddi_bc_hwExpressibleCurrent(u16Target);
+	return ddi_power_ExpressibleCurrent(u16Target);
 
 }
 
@@ -92,18 +92,7 @@ uint16_t ddi_bc_RampGetTarget(void)
 }
 
 
-/*  */
-/* brief Set the current limit. */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function sets the current limit and implements it immediately. */
-/*  */
-/* param[in]  u16Limit  The current limit. */
-/*  */
-/* retval  The expressible version of the limit. */
-/*  */
-
+/* [luheng] set g_RampControl.u16Limit */
 uint16_t ddi_bc_RampSetLimit(uint16_t u16Limit)
 {
 	g_RampControl.u16Limit = u16Limit;
@@ -114,7 +103,7 @@ uint16_t ddi_bc_RampSetLimit(uint16_t u16Limit)
 	/* initialized, it doesn't matter. */
 	ddi_bc_RampStep(0);
 
-	return ddi_bc_hwExpressibleCurrent(u16Limit);
+	return ddi_power_ExpressibleCurrent(u16Limit);
 
 }
 
@@ -135,7 +124,7 @@ void ddi_bc_RampUpdateAlarms()
 		int16_t i16Low;
 		int16_t i16High;
 
-		ddi_bc_hwGetDieTemp(&i16Low, &i16High);
+		ddi_power_GetDieTemp(&i16Low, &i16High);
 
 		if (g_RampControl.dieTempAlarm) {                         /* previously alarmed */
 			if (i16High < g_ddi_bc_Configuration.u8DieTempLow) {  /* safe, release alarm */
@@ -159,22 +148,19 @@ void ddi_bc_RampUpdateAlarms()
 
 	/* update batt temp alarm */
 	if (g_ddi_bc_Configuration.monitorBatteryTemp) {                /* need monitor batt temp */
-		ddi_bc_Status_t status;
 		uint16_t u16Reading;
 
-		status = ddi_bc_hwGetBatteryTemp(&u16Reading);
+		ddi_power_GetBatteryTemp(&u16Reading);
 
-		if (status == DDI_BC_STATUS_SUCCESS) {
-			if (g_RampControl.batteryTempAlarm) {                  /* previously alarmed */
-				if (u16Reading < g_ddi_bc_Configuration.u16BatteryTempLow) {
-					g_RampControl.batteryTempAlarm = 0;            /* release alarm if now below lower margin */
-					iStepTheRamp = !0;
-				}
-			} else {                                               /* previously not alarmed */
-				if (u16Reading >= g_ddi_bc_Configuration.u16BatteryTempHigh) {
-					g_RampControl.batteryTempAlarm = 1;            /* start alarm if now higher than high margin */
-					iStepTheRamp = !0;
-				}
+		if (g_RampControl.batteryTempAlarm) {                  /* previously alarmed */
+			if (u16Reading < g_ddi_bc_Configuration.u16BatteryTempLow) {
+				g_RampControl.batteryTempAlarm = 0;            /* release alarm if now below lower margin */
+				iStepTheRamp = !0;
+			}
+		} else {                                               /* previously not alarmed */
+			if (u16Reading >= g_ddi_bc_Configuration.u16BatteryTempHigh) {
+				g_RampControl.batteryTempAlarm = 1;            /* start alarm if now higher than high margin */
+				iStepTheRamp = !0;
 			}
 		}
 	}
@@ -258,7 +244,7 @@ ddi_bc_Status_t ddi_bc_RampStep(uint32_t u32Time)
 	if (g_ddi_bc_State == DDI_BC_STATE_UNINITIALIZED)
 		return DDI_BC_STATUS_NOT_INITIALIZED;
 
-	u16MaxNow = ddi_bc_hwGetMaxCurrent();   /* current max charging current hw setting */
+	u16MaxNow = ddi_power_GetMaxBatteryChargeCurrent();   /* current max charging current hw setting */
 
 	u16Target = g_RampControl.u16Target;    /* target should not exceeds limit(780mA) */
 	if (u16Target > g_RampControl.u16Limit)
@@ -274,7 +260,7 @@ ddi_bc_Status_t ddi_bc_RampStep(uint32_t u32Time)
 		u16Target = g_ddi_bc_Configuration.u16BatteryTempSafeCurrent;
 
 	/* now 'u16Target' is our ultimate taregt, convert it to expressible */
-	u16Target = ddi_bc_hwExpressibleCurrent(u16Target);
+	u16Target = ddi_power_ExpressibleCurrent(u16Target);
 
 	i32Delta = ((int32_t) u16Target) - ((int32_t) u16MaxNow);
 
@@ -284,8 +270,8 @@ ddi_bc_Status_t ddi_bc_RampStep(uint32_t u32Time)
 	}
 
 	if (i32Delta < 0) {                     /* to ramp \|/, go to target directly */
-		ddi_bc_hwSetMaxCurrent(u16Target);
-		ddi_bc_hwSetChargerPower(u16Target != 0);
+		ddi_power_SetMaxBatteryChargeCurrent(u16Target);
+		ddi_power_SetChargerPowered(u16Target != 0);
 		g_RampControl.u32AccumulatedTime = 0;
 		return DDI_BC_STATUS_SUCCESS;
 	}
@@ -298,7 +284,7 @@ ddi_bc_Status_t ddi_bc_RampStep(uint32_t u32Time)
 	u16Cart = (g_ddi_bc_Configuration.u16CurrentRampSlope * u32Time) / 1000;
 
 	if ((u16MaxNow + u16Cart) < u16Target) { /* can't buy ultimate target, adjust temp target to what we can */
-		u16Target = ddi_bc_hwExpressibleCurrent(u16MaxNow + u16Cart);
+		u16Target = ddi_power_ExpressibleCurrent(u16MaxNow + u16Cart);
 
 		if (u16Target == u16MaxNow) {        /* what we can buy is non-expressible, deposit our sum */
 			g_RampControl.u32AccumulatedTime = u32Time;
@@ -307,8 +293,8 @@ ddi_bc_Status_t ddi_bc_RampStep(uint32_t u32Time)
 	} /* else, 'u16Target' is the ultimate target and we can affort to buy it, expressible */
 
 	/* now, the 'u16Tqarget' is what we can buy now in any case, consume all our deposits to buy it */
-	ddi_bc_hwSetMaxCurrent(u16Target);       /* buy what we can */
-	ddi_bc_hwSetChargerPower(u16Target != 0);
+	ddi_power_SetMaxBatteryChargeCurrent(u16Target);       /* buy what we can */
+	ddi_power_SetChargerPowered(u16Target != 0);
 
 	g_RampControl.u32AccumulatedTime = 0;    /* dump all our deposits */
 

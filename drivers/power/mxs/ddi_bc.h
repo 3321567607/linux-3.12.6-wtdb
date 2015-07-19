@@ -436,22 +436,6 @@ typedef enum {
 
 extern ddi_bc_Status_t ddi_bc_Init(ddi_bc_Cfg_t *pCfg);
 
-/*  */
-/* brief Report the Battery Charger configuration. */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function reports the Battery Charger configuration. */
-/*  */
-/*  Note that, if the Battery Charger has not yet been initialized, the data */
-/*  returned by this function is unknown. */
-/*  */
-/* param[in,out]  pCfg  A pointer to a structure that will receive the data. */
-/*  */
-/* internal */
-/* see To view the function definition, see ddi_bc_api.c. */
-
-extern void ddi_bc_QueryCfg(ddi_bc_Cfg_t *pCfg);
 
 /*  */
 /* brief Shut down the Battery Charger. */
@@ -534,73 +518,6 @@ extern ddi_bc_Status_t ddi_bc_SetDisable(void);
 
 extern ddi_bc_Status_t ddi_bc_SetEnable(void);
 
-/*  */
-/* brief Declare the battery to be broken. */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function forces the Battery Charger into the Broken state. */
-/*  */
-/* retval DDI_BC_STATUS_SUCCESS          If all goes well */
-/* retval DDI_BC_STATUS_NOT_INITIALIZED  If the Battery Charger is not yet */
-/*                                         initialized. */
-/*  */
-/* internal */
-/* see To view the function definition, see ddi_bc_api.c. */
-
-extern ddi_bc_Status_t ddi_bc_SetBroken(void);
-
-/*  */
-/* brief Declare the battery to be fixed. */
-/*  */
-/* fntype Function */
-/*  */
-/*  If the Battery Charger is in the Broken state, this function moves it to */
-/*  the Disabled state. */
-/*  */
-/* retval DDI_BC_STATUS_SUCCESS          If all goes well */
-/* retval DDI_BC_STATUS_NOT_INITIALIZED  If the Battery Charger is not yet */
-/*                                         initialized. */
-/* retval DDI_BC_STATUS_NOT_BROKEN       If the Battery Charger is not broken. */
-/*  */
-/* internal */
-/* see To view the function definition, see ddi_bc_api.c. */
-
-extern ddi_bc_Status_t ddi_bc_SetFixed(void);
-
-/*  */
-/* brief Set the current limit. */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function applies a limit to the current that the Battery Charger can */
-/*  draw. */
-/*  */
-/* param[in]  u16Limit  The maximum current the Battery Charger can draw */
-/*                        (in mA). */
-/*  */
-/* retval  The expressible version of the limit. */
-/*  */
-/* internal */
-/* see To view the function definition, see ddi_bc_api.c. */
-
-extern uint16_t ddi_bc_SetCurrentLimit(uint16_t u16Limit);
-
-
-/*  */
-/* brief Report the current limit. */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function reports the limit to the current that the Battery Charger can */
-/*  draw. */
-/*  */
-/* retval  The current limit. */
-/*  */
-/* internal */
-/* see To view the function definition, see ddi_bc_api.c. */
-
-extern uint16_t ddi_bc_GetCurrentLimit(void);
 
 
 /*  */
@@ -617,71 +534,6 @@ extern uint16_t ddi_bc_SetCurrentThreshold(uint16_t u16Current);
 
 
 /*  */
-/* brief Set the battery charger state machine period. */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function sets a new state machine period.  The Period and Slope should */
-/*  be coordinated to achieve the minimal ramp step current which will minimize */
-/*  transients on the system. */
-/*  */
-/* param[in]  u32StateMachinePeriod  (in milliseconds) */
-/* param[in]  u16CurrentRampSlope (in mA/s) */
-/*  */
-/* retval SUCCESS                        If all goes well */
-/* retval ERROR_DDI_BCM_NOT_INITIALIZED  If the Battery Charger is not yet */
-/*                                         initialized. */
-/*  */
-
-extern ddi_bc_Status_t ddi_bc_SetNewPeriodAndSlope(uint32_t
-						   u32StateMachinePeriod,
-						   uint16_t
-						   u16CurrentRampSlope);
-
-
-/*  */
-/* brief Report the state machine period. */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function reports the battery charger period. */
-/*  */
-/* retval  The battery charger period (in milliseconds). */
-/*  */
-
-extern uint32_t ddi_bc_GetStateMachinePeriod(void);
-
-
-/*  */
-/* brief Report the current ramp slope. */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function reports the current ramp slope. */
-/*  */
-/* retval  The current ramp slope (in mA/s). */
-/*  */
-
-extern uint32_t ddi_bc_GetCurrentRampSlope(void);
-
-
-/*  */
-/* brief Report the time spent in the present state (milliseconds) */
-/*  */
-/* fntype Function */
-/*  */
-/*  This function reports the time spent in the present charging state.  Note that */
-/*  for the states that actually charge the battery, this time does not include the */
-/*  time spent under alarm conditions such as die termperature alarm or battery */
-/*  temperature alarm. */
-/*  */
-/* retval  The time spent in the current state in milliseconds. */
-/*  */
-
-uint32_t ddi_bc_GetStateTime(void);
-
-
-/*  */
 /* brief Report the reason for being in the broken state */
 /*  */
 /* fntype Function */
@@ -692,16 +544,6 @@ uint32_t ddi_bc_GetStateTime(void);
 
 ddi_bc_BrokenReason_t ddi_bc_GetBrokenReason(void);
 
-
-/*  */
-/* brief Restart the charge cycle */
-/*  */
-/* fntype Function */
-/*  */
-/* retval  SUCCESS */
-/*  */
-
-ddi_bc_Status_t ddi_bc_ForceChargingToStart(void);
 
 void fsl_enable_usb_plugindetect(void);
 

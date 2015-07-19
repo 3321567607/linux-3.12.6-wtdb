@@ -99,7 +99,6 @@ int mxs_pwr_irqs[NUMS_MXS_PWR_IRQS];
 /*void __iomem *mxs_digctl_base;*/
 void __iomem *mxs_rtc_base;
 void __iomem *mxs_lradc_base;
-static struct clk *lradc_clk;
 
 
 static ddi_bc_Cfg_t battery_data = {
@@ -227,6 +226,8 @@ static void check_and_handle_5v_connection(struct mxs_info *info)
 
 			/* It is safe to turn on vddio-BO INT again */
 			ddi_power_enable_vddio_interrupt(true);
+			WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDDD_BO, HW_POWER_CTRL_SET);
+			WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDDA_BO, HW_POWER_CTRL_SET);
 
 			info->sm_5v_connection_status = _5v_connected_verified;
 			dev_dbg(info->dev, "5v connection verified\n");
@@ -237,7 +238,7 @@ static void check_and_handle_5v_connection(struct mxs_info *info)
 				break;
 
 			ddi_bc_SetDisable();
-			ddi_bc_SetCurrentLimit(0);
+			ddi_bc_RampSetLimit(0);
 			if (info->regulator)
 				regulator_set_current_limit(info->regulator, 0, 0);
 			info->is_ac_online = 0;
@@ -458,7 +459,7 @@ static void state_machine_work(struct work_struct *work)
 	info->is_usb_online = 0;
 
 	ddi_power_set_4p2_ilimit(NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA);
-	ddi_bc_SetCurrentLimit(NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA /*mA*/);
+	ddi_bc_RampSetLimit(NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA /*mA*/);
 
 	ddi_bc_SetEnable();
 
@@ -470,7 +471,7 @@ out:
 	mutex_unlock(&info->sm_lock);
 }
 
-/* [luheng] init charger and schedule statemachine right away */
+/* [luheng] init charger and schedule statemachine 100ms later */
 static int bc_sm_restart(struct mxs_info *info)
 {
 	ddi_bc_Status_t bcret;
@@ -487,7 +488,7 @@ static int bc_sm_restart(struct mxs_info *info)
 	info->regulator = NULL;
 
 	/* schedule first call to state machine */
-	mod_timer(&info->sm_timer, jiffies + 1);
+	mod_timer(&info->sm_timer, jiffies + msecs_to_jiffies(100));
 out:
 	mutex_unlock(&info->sm_lock);
 	return ret;
@@ -496,16 +497,16 @@ out:
 #ifndef POWER_FIQ
 static irqreturn_t mxs_irq_dcdc4p2_bo(int irq, void *cookie)
 {
-	printk("wangluheng %s...\n", __FUNCTION__);
-	/*mdelay(5000);*/
+	printk("%s shutting down...\n", __FUNCTION__);
+	mdelay(500);
 	ddi_power_handle_dcdc4p2_bo();
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t mxs_irq_batt_brnout(int irq, void *cookie)
 {
-	printk("wangluheng %s...\n", __FUNCTION__);
-	/*mdelay(5000);*/
+	printk("%s shutting down...\n", __FUNCTION__);
+	mdelay(500);
 	ddi_power_shutdown();
 	return IRQ_HANDLED;
 }
@@ -513,24 +514,24 @@ static irqreturn_t mxs_irq_batt_brnout(int irq, void *cookie)
 
 static irqreturn_t mxs_irq_vddd_brnout(int irq, void *cookie)
 {
-	printk("wangluheng %s...\n", __FUNCTION__);
-	/*mdelay(5000);*/
+	printk("%s shutting down...\n", __FUNCTION__);
+	mdelay(500);
 	ddi_power_shutdown();
 	return IRQ_HANDLED;
 }
 static irqreturn_t mxs_irq_vdda_brnout(int irq, void *cookie)
 {
-	printk("wangluheng %s...\n", __FUNCTION__);
-	/*mdelay(5000);*/
+	printk("%s shutting down...\n", __FUNCTION__);
+	mdelay(500);
 	ddi_power_shutdown();
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t mxs_irq_vdd5v_droop(int irq, void *cookie)
 {
+	ddi_power_handle_vdd5v_droop();
 	printk("wangluheng %s...\n", __FUNCTION__);
 	/*mdelay(5000);*/
-	ddi_power_handle_vdd5v_droop();
 
 	return IRQ_HANDLED;
 }
@@ -823,21 +824,19 @@ static int mxs_bat_probe(struct platform_device *pdev)
 	if (NULL == (info = mxs_bat_init_info(pdev))) /* alloc & init mem, request lradc clock */
 		return -ENOMEM;
 
-	if ((ret = mxs_bat_init_regs(pdev))) /* init hw-module base address from dt */
-		return ret;
-
-	if ((ret = ddi_power_init_battery())) { /* enable batt vol measrement, enable 5v detect */
-		printk(KERN_ERR "Aborting power driver initialization\n");
-		return ret;
+	if ((ret = mxs_bat_init_regs(pdev))) {        /* init hw-module base address from dt */
+		goto free_info;
 	}
 
-	/* disable 5vlinreg current limit */
-	WR_PWR_REG(BM_POWER_5VCTRL_ENABLE_LINREG_ILIMIT, HW_POWER_5VCTRL_CLR);
+	if ((ret = ddi_power_init_battery())) {       /* enable batt vol measrement, enable 5v detect */
+		printk(KERN_ERR "Aborting power driver initialization\n");
+		goto free_info;
+	}
 
-	if ((ret = bc_sm_restart(info))) /* init state machine and start it right away */
+	if ((ret = bc_sm_restart(info)))              /* init state machine and start it right away */
 		goto free_info;
 
-	if (mxs_init_irqs(pdev)) /* request battery irqs */
+	if (mxs_init_irqs(pdev))                      /* request battery irqs */
 		goto stop_sm;
 
 	if ((ret = power_supply_register(&pdev->dev, &info->bat))) {
@@ -958,7 +957,7 @@ static int mxs_bat_resume(struct platform_device *pdev)
 			dev_dbg(info->dev, "ac/5v present, enabling state machine\n");
 
 			info->is_ac_online = 1;
-			ddi_bc_SetCurrentLimit(NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA /*mA*/);
+			ddi_bc_RampSetLimit(NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA /*mA*/);
 			ddi_bc_SetEnable();
 		} else {
 			/* not powered */

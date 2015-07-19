@@ -33,7 +33,6 @@
 
 
 #include "ddi_bc.h"
-#include "ddi_bc_hw.h"
 #include "ddi_bc_ramp.h"
 #include "ddi_bc_sm.h"
 #include "ddi_power_battery.h"

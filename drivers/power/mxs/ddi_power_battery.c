@@ -119,7 +119,7 @@ uint16_t ddi_power_convert_setting_to_current(uint16_t u16Setting)
 
 /* [luheng]
  *		1. Don't power down device for 5v-BO
- *		2. Turn on VBUSVALID comparator(>4.3v)
+ *		2. Turn on VBUSVALID comparator(>4.3v) even VDD5V_GT_VDDIO is used to detect 5v presence
  *		3. Set vddio/vdda/vddd linreg output 25mv lower than DCDC counterpart
  *		4. clear 5v-presence irq stats and enable the irq(VBUSVALID or VDD5V-GT-VDDIO).
  */
@@ -158,13 +158,13 @@ void ddi_power_Enable5vDetection(void)
  * [luheng]
  * switch 5v-detection: detect on -> detect off
  *
- * This function prepares the hardware for a 5V-to-battery handoff. It assumes
- * the current configuration is using 5V as the power source.  The 5V
- * interrupt will be set up for a 5V removal.
+ * 1. clr 5v presence INT flag
+ * 2. start detecting 5v unplug
+ * 3. enable DCDC_XFER
  */
 void ddi_power_enable_5v_to_battery_handoff(void)
 {
-	/* Clear vbusvalid interrupt flag */
+	/* Clear 5v presence INT flag */
 	WR_PWR_REG(BM_POWER_CTRL_VBUSVALID_IRQ, HW_POWER_CTRL_CLR);
 	WR_PWR_REG(BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ, HW_POWER_CTRL_CLR);
 
@@ -172,10 +172,10 @@ void ddi_power_enable_5v_to_battery_handoff(void)
 	WR_PWR_REG(BM_POWER_CTRL_POLARITY_VBUSVALID, HW_POWER_CTRL_CLR);
 	WR_PWR_REG(BM_POWER_CTRL_POLARITY_VDD5V_GT_VDDIO, HW_POWER_CTRL_CLR);
 
-#ifndef VDD4P2_ENABLED
+/* #ifndef VDD4P2_ENABLED */
 	/* Enable automatic transition to DCDC */
 	WR_PWR_REG(BM_POWER_5VCTRL_DCDC_XFER, HW_POWER_5VCTRL_SET);
-#endif
+/* #endif */
 }
 
 /*
@@ -202,11 +202,9 @@ void ddi_power_execute_5v_to_battery_handoff(void)
  * [luheng]
  * switch 5v-detection: detect off -> detect on, assure DCDC active after 5v is on
  *
- * This function sets up battery-to-5V handoff. The power switch from
- * battery to 5V is automatic. This funtion enables the 5V present detection
- * such that the 5V interrupt can be generated if it is enabled. (The interrupt
- * handler can inform software the 5V present event.) To deal with noise or
- * a high current, this function enables DCDC1/2 based on the battery mode.
+ * 1. clr 5v presence INT flag
+ * 2. start detecting 5v plug
+ * 3. allow DCDC when 5v present
  */
 void ddi_power_enable_battery_to_5v_handoff(void)
 {
@@ -220,18 +218,6 @@ void ddi_power_enable_battery_to_5v_handoff(void)
 
 	/* Allow DCDC be to active when 5V is present. */
 	WR_PWR_REG(BM_POWER_5VCTRL_ENABLE_DCDC, HW_POWER_5VCTRL_SET);
-}
-
-/*
- * [luheng] transition DCDC source from batt to 4p2, 5v->charger_&_4p2 limit is 450mA.
- *
- * This function handles the transitions on each of theVDD5V_GT_VDDIO power
- * rails necessary to power the chip from the 5V power supply when it was
- * previously powered from the battery power supply.
- */
-void ddi_power_execute_battery_to_5v_handoff(void)
-{
-	ddi_power_Enable4p2(450);
 }
 
 /*
@@ -478,23 +464,12 @@ void ddi_power_Set4p2BoLevel(uint16_t bo_voltage_mv)
 /* [luheng] enable 5v detection. detect 'on' if now 'off', detect 'off' if now 'on' */
 void ddi_power_init_handoff(void)
 {
-	/* enable 5v presence detection, to detect on or off is not specified here */
-	ddi_power_Enable5vDetection();
+	ddi_power_Enable5vDetection();                /* enable 5v presence INT, if 'on' or 'off' is set \|/ */
 
 	if (ddi_power_Get5vPresentFlag())
 		ddi_power_enable_5v_to_battery_handoff(); /* 5v is on, detecting off */
 	else
 		ddi_power_enable_battery_to_5v_handoff(); /* 5v is off, detecting on, keep DCDC alive when 5v on */
-
-	/* Finally enable the battery adjust */
-	SET_PWR_REG_BITS(HW_POWER_BATTMONITOR, BM_POWER_BATTMONITOR_EN_BATADJ);
-}
-
-/* [luheng] enable batt-BO irq, para 'enable' unused!!!! */
-void ddi_power_EnableBatteryInterrupt(bool enable)
-{
-	WR_PWR_REG(BM_POWER_CTRL_BATT_BO_IRQ, HW_POWER_CTRL_CLR);
-	WR_PWR_REG(BM_POWER_CTRL_ENIRQBATT_BO, HW_POWER_CTRL_SET);
 }
 
 /*
@@ -502,40 +477,40 @@ void ddi_power_EnableBatteryInterrupt(bool enable)
  */
 static void ddi_pwr_init_batt_mon(void)
 {
-		uint16_t wait_time = 0;
+	uint16_t wait_time = 0;
 
-		/* disable div2 */
-		WR_LRADC_REG(BF_LRADC_CTRL2_DIVIDE_BY_TWO(1 << BATTERY_VOLTAGE_CH), HW_LRADC_CTRL2_CLR);
-		/* Clear the accumulator & NUM_SAMPLES */
-		WR_LRADC_REG(0xFFFFFFFF, HW_LRADC_CHn_CLR(BATTERY_VOLTAGE_CH));
-		/* forever trigger lradc-ch-7 at 100ms interval on delay-ch3 */
-		hw_lradc_set_delay_trigger(
-			LRADC_DELAY_TRIGGER_BATTERY,        /* set delay-ch-3 */
-			1 << BATTERY_VOLTAGE_CH,            /* trigger lradc-ch-7 */
-			1 << LRADC_DELAY_TRIGGER_BATTERY,   /* trigger myself: delay-ch-3 also */
-			0,                                  /* loop once, but since it trigger itself, forever */
-			200);                               /* timer, 200 * (1 / 2k Hz), i.e. 100ms */
+	/* disable div2 */
+	WR_LRADC_REG(BF_LRADC_CTRL2_DIVIDE_BY_TWO(1 << BATTERY_VOLTAGE_CH), HW_LRADC_CTRL2_CLR);
+	/* Clear the accumulator & NUM_SAMPLES */
+	WR_LRADC_REG(0xFFFFFFFF, HW_LRADC_CHn_CLR(BATTERY_VOLTAGE_CH));
+	/* forever trigger lradc-ch-7 at 100ms interval on delay-ch3 */
+	hw_lradc_set_delay_trigger(
+		LRADC_DELAY_TRIGGER_BATTERY,        /* set delay-ch-3 */
+		1 << BATTERY_VOLTAGE_CH,            /* trigger lradc-ch-7 */
+		1 << LRADC_DELAY_TRIGGER_BATTERY,   /* trigger myself: delay-ch-3 also */
+		0,                                  /* loop once, but since it trigger itself, forever */
+		200);                               /* timer, 200 * (1 / 2k Hz), i.e. 100ms */
 
-		/* set to LiIon scale factor */
-		WR_LRADC_REG(BM_LRADC_CONVERSION_SCALE_FACTOR, HW_LRADC_CONVERSION_CLR);
-		WR_LRADC_REG(BF_LRADC_CONVERSION_SCALE_FACTOR(BV_LRADC_CONVERSION_SCALE_FACTOR__LI_ION),
-			HW_LRADC_CONVERSION_SET);
-		/* auto update to vol_val in batt_mon */
-		WR_LRADC_REG(BM_LRADC_CONVERSION_AUTOMATIC, HW_LRADC_CONVERSION_SET);
-		/* clear previous "measured" footprint */
-		WR_LRADC_REG(1 << BATTERY_VOLTAGE_CH, HW_LRADC_CTRL1_CLR);
-		/* kick off the trigger */
-		WR_LRADC_REG(BM_LRADC_DELAYn_KICK, HW_LRADC_DELAYn_SET(LRADC_DELAY_TRIGGER_BATTERY));
+	/* set to LiIon scale factor */
+	WR_LRADC_REG(BM_LRADC_CONVERSION_SCALE_FACTOR, HW_LRADC_CONVERSION_CLR);
+	WR_LRADC_REG(BF_LRADC_CONVERSION_SCALE_FACTOR(BV_LRADC_CONVERSION_SCALE_FACTOR__LI_ION),
+		HW_LRADC_CONVERSION_SET);
+	/* auto update to vol_val in batt_mon */
+	WR_LRADC_REG(BM_LRADC_CONVERSION_AUTOMATIC, HW_LRADC_CONVERSION_SET);
+	/* clear previous "measured" footprint */
+	WR_LRADC_REG(1 << BATTERY_VOLTAGE_CH, HW_LRADC_CTRL1_CLR);
+	/* kick off the trigger */
+	WR_LRADC_REG(BM_LRADC_DELAYn_KICK, HW_LRADC_DELAYn_SET(LRADC_DELAY_TRIGGER_BATTERY));
 
-		/* wait for 1st measurement before enabling auto volt update */
-		while (!(RD_LRADC_REG(HW_LRADC_CTRL1) & (1 << BATTERY_VOLTAGE_CH))
-				 &&(wait_time < 10)) {
-			wait_time++;
-			mdelay(1);
-		}
+	/* wait for 1st measurement before enabling auto volt update */
+	while (!(RD_LRADC_REG(HW_LRADC_CTRL1) & (1 << BATTERY_VOLTAGE_CH))
+			 &&(wait_time < 10)) {
+		wait_time++;
+		mdelay(1);
+	}
 }
 
-/* [luheng] enable lradc to measure batt vol, enable 5v detection */
+/* [luheng] enable lradc to measure batt vol, start detecting 5v plug/unplug */
 int ddi_power_init_battery(void)
 {
 	if (!(RD_PWR_REG(HW_POWER_5VCTRL) & BM_POWER_5VCTRL_ENABLE_DCDC)) {
@@ -552,9 +527,15 @@ int ddi_power_init_battery(void)
 	} else {
 		ddi_pwr_init_batt_mon(); /* lradc-ch-7 to measure batt-vol and cp to power module per 100ms */
 	}
-	printk("Battery voltage measured: %d\n", ddi_bc_hwGetBatteryVoltage());
+	printk("Battery voltage measured: %d\n", ddi_power_GetBattery());
 
-	ddi_power_init_handoff(); /* enable 5v detection */
+	ddi_power_init_handoff();    /* start detecting 5v plug/unplug */
+
+	/* Finally enable the battery adjust */
+	SET_PWR_REG_BITS(HW_POWER_BATTMONITOR, BM_POWER_BATTMONITOR_EN_BATADJ);
+	/* disable 5vlinreg current limit */
+	WR_PWR_REG(BM_POWER_5VCTRL_ENABLE_LINREG_ILIMIT, HW_POWER_5VCTRL_CLR);
+
 	return 0;
 }
 
@@ -708,12 +689,6 @@ bool ddi_power_GetBatteryChargerEnabled(void)
 	return 1;
 }
 
-/* [luheng] whether batt-charger is turned on, return true(on), false(off) */
-bool ddi_power_GetChargerPowered(void)
-{
-	return (RD_PWR_REG(HW_POWER_CHARGE) & BM_POWER_CHARGE_PWD_BATTCHRG) ? 0 : 1;
-}
-
 /* [luheng] turn on/off batt-charger. To turn on, also turn on 5v->charger_&_4p2 route */
 void ddi_power_SetChargerPowered(bool bPowerOn)
 {
@@ -806,7 +781,9 @@ uint16_t ddi_power_ExpressibleCurrent(uint16_t u16Current)
 	return ddi_power_convert_setting_to_current(ddi_power_convert_current_to_setting(u16Current));
 }
 
-/* [luheng] Check if 5v is present from POWER_STS reg, true:presence, false:absence */
+/* [luheng] Check if 5v is present from POWER_STS reg, true:presence, false:absence
+ * detect either STS_VBUSVALID0 or VDD5V_GT_VDDIO according to global DetectionMethod
+ */
 bool ddi_power_Get5vPresentFlag(void)
 {
 	switch (DetectionMethod) {
@@ -851,20 +828,6 @@ void ddi_power_GetBatteryTemp(uint16_t *pReading)
 	*pReading = MeasureInternalBatteryTemperature();
 }
 
-/* [luheng] check if ENABLE_DCDC is set in 5VCTRL reg, if set means DCDC keep active when 5v is present */
-bool ddi_power_IsDcdcOn(void)
-{
-	return (RD_PWR_REG(HW_POWER_5VCTRL) & BM_POWER_5VCTRL_ENABLE_DCDC) ? 1 : 0;
-}
-
-void ddi_power_SetPowerClkGate(bool bGate)
-{
-}
-bool ddi_power_GetPowerClkGate(void)
-{
-	return 0;
-}
-
 /*
  * [luheng] check 5v state:
  *      new_5v_connection           new on
@@ -877,7 +840,7 @@ enum ddi_power_5v_status ddi_power_GetPmu5vStatus(void)
 	uint32_t pwr_ctrl_val = RD_PWR_REG(HW_POWER_CTRL);
 	
 	if (DetectionMethod == DDI_POWER_5V_VDD5V_GT_VDDIO) {
-		if (pwr_ctrl_val & BM_POWER_CTRL_POLARITY_VDD5V_GT_VDDIO) { /* 5v, previously off, expecting on */
+		if (pwr_ctrl_val & BM_POWER_CTRL_POLARITY_VDD5V_GT_VDDIO) { /* 5v, expecting on */
 			if (  (pwr_ctrl_val & BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ)
 				|| ddi_power_Get5vPresentFlag())
 				return new_5v_connection;                           /* off -> on */
@@ -892,13 +855,13 @@ enum ddi_power_5v_status ddi_power_GetPmu5vStatus(void)
 				return existing_5v_connection;                      /* still on */
 		}
 	} else {
-		if (pwr_ctrl_val & BM_POWER_CTRL_POLARITY_VBUSVALID) {
+		if (pwr_ctrl_val & BM_POWER_CTRL_POLARITY_VBUSVALID) {      /* expecting on */
 			if ((pwr_ctrl_val & BM_POWER_CTRL_VBUSVALID_IRQ) ||
 				ddi_power_Get5vPresentFlag())
 				return new_5v_connection;
 			else
 				return existing_5v_disconnection;
-		} else {
+		} else {                                                    /* expecting off */
 			if ((pwr_ctrl_val & BM_POWER_CTRL_VBUSVALID_IRQ) ||
 				!ddi_power_Get5vPresentFlag() ||
 				ddi_power_Get5vDroopFlag())
@@ -915,7 +878,7 @@ void ddi_power_disable_5v_connection_irq(void)
 	WR_PWR_REG((BM_POWER_CTRL_ENIRQ_VBUS_VALID | BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO), HW_POWER_CTRL_CLR);
 }
 
-/* [luheng] starting detect 5v detache, will trigger an irq on detection */
+/* [luheng] start detecting 5v detache, will trigger an irq on detection */
 void ddi_power_enable_5v_disconnect_detection(void)
 {
 	WR_PWR_REG(BM_POWER_CTRL_POLARITY_VDD5V_GT_VDDIO | BM_POWER_CTRL_POLARITY_VBUSVALID, HW_POWER_CTRL_CLR);
@@ -1101,6 +1064,7 @@ void ddi_power_handle_vdd5v_droop(void)
 	ddi_power_EnableDcdc4p2BoInterrupt(false);
 	ddi_power_EnableVdd5vDroopInterrupt(false);
 	WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDDD_BO, HW_POWER_CTRL_CLR);
+	WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDDA_BO, HW_POWER_CTRL_CLR);
 
 }
 

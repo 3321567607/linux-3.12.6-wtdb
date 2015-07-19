@@ -38,6 +38,16 @@
 				};
 			};*/
 
+			ssp0: ssp@80010000 {
+				compatible = "fsl,imx28-mmc";
+				pinctrl-names = "default";
+				pinctrl-0 = <&mmc0_4bit_pins_wt
+					&mmc0_sck_cfg>;
+				bus-width = <4>;
+				status = "okay";
+				is_bcmdhd;
+			};
+
 			ssp1: ssp@80012000 {
 				compatible = "fsl,imx28-mmc";
 				pinctrl-names = "default";
@@ -45,6 +55,8 @@
 					&mmc1_sck_cfg>;
 				bus-width = <8>;
 				//wp-gpios = <&gpio0 28 0>;
+				mmc-reset-gpios = <&gpio0 28 1>;
+				mmc-reset-duration = <5>;
 				status = "okay";
 			};
 
@@ -146,18 +158,6 @@
 					fsl,voltage = <1>;
 					fsl,pull-up = <0>;
 				};
-			};
-
-			ssp0: ssp@80010000 {
-				compatible = "fsl,imx28-mmc";
-				pinctrl-names = "default";
-				pinctrl-0 = <&mmc0_4bit_pins_wt
-					&mmc0_sck_cfg>;
-				bus-width = <4>;
-				status = "okay";
-				mmc-reset-gpios = <&gpio0 28 1>;
-				mmc-reset-duration = <5>;
-				is_bcmdhd;
 			};
 
 			can0: can@80032000 {
