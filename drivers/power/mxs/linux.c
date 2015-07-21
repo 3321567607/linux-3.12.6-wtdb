@@ -729,13 +729,13 @@ static int mxs_init_irqs(struct platform_device *pdev)
 	} else
 		info->irq_batt_brnout = IRQ_BATT_BRNOUT;
 
-	if ((ret = devm_request_threaded_irq(&(pdev->dev), IRQ_VDDD_BRNOUT, mxs_irq_vddd_brnout,
+	/*if ((ret = devm_request_threaded_irq(&(pdev->dev), IRQ_VDDD_BRNOUT, mxs_irq_vddd_brnout,
 			NULL, 0, dev_name(&(pdev->dev)), info)))
 	{
 		dev_err(info->dev, "failed to request IRQ_VDDD_BRNOUT\n");
 		goto out;
 	} else
-		info->irq_vddd_brnout = IRQ_VDDD_BRNOUT;
+		info->irq_vddd_brnout = IRQ_VDDD_BRNOUT;*/
 
 	if ((ret = devm_request_threaded_irq(&(pdev->dev), IRQ_VDDA_BRNOUT, mxs_irq_vdda_brnout,
 			NULL, 0, dev_name(&(pdev->dev)), info)))
