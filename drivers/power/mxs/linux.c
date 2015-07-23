@@ -95,10 +95,23 @@ struct mxs_info {
 
 #define is_ac_online() ddi_power_Get5vPresentFlag()
 
+/*
+ * last:  latest logged event, write from next
+ * first: first  logged event to be read, read from here
+ */
+#define BAT_MAX_EVENTS 20
+#define BAT_NEXT_INDEX(n) ((((n) + 1) == BAT_MAX_EVENTS) ? 0 : ((n) + 1))
+#define BAT_BUF_FULL(fir,las) (((BAT_NEXT_INDEX(las)) == (fir)) ? true : false)
+#define BAT_BUF_EMPTY(fir,las) (((fir) == (las)) ? true : false)
+static int event_log[BAT_MAX_EVENTS] = {0};
+static int first_ev = 0;
+static int last_ev = 0;
+
 int mxs_pwr_irqs[NUMS_MXS_PWR_IRQS];
 /*void __iomem *mxs_digctl_base;*/
 void __iomem *mxs_rtc_base;
 void __iomem *mxs_lradc_base;
+
 
 
 static ddi_bc_Cfg_t battery_data = {
@@ -129,6 +142,33 @@ static ddi_bc_Cfg_t battery_data = {
 	.u16BatteryTempLow               = 497,          /* low margin of thermistor ohm value */
 	.u16BatteryTempSafeCurrent       = 0,            /* mA */
 };
+
+static void save_irq_event(int irq)
+{
+	if (!BAT_BUF_FULL(first_ev,last_ev)) {
+		last_ev = BAT_NEXT_INDEX(last_ev);
+		event_log[last_ev] = irq;
+	}
+}
+static void print_irq_event(void)
+{
+	int irq = -1;
+
+	while (!BAT_BUF_EMPTY(first_ev,last_ev)) {
+		irq = event_log[first_ev];
+		event_log[first_ev] = -1;
+		first_ev = BAT_NEXT_INDEX(first_ev);
+
+		if (IRQ_DCDC4P2_BRNOUT == irq)
+			BATT_LOG("irq 4.2v \\|/\n");
+		else if (IRQ_VDD5V_DROOP == irq)
+			BATT_LOG("irq 5v \\|/\n");
+		else if (IRQ_VDD5V == irq)
+			BATT_LOG("irq 5v on/off\n");
+		else if (IRQ_VDDIO_BRNOUT == irq)
+			BATT_LOG("irq 3.3v \\|/\n");
+	}
+}
 
 void hw_lradc_set_delay_trigger(int trgr, u32 trgr_lradc, u32 delay_trgr, u32 loops, u32 delays)
 {
@@ -275,7 +315,7 @@ static void handle_battery_voltage_changes(struct mxs_info *info)
 	if (ready_xfer != xfer_enabled) {
 		xfer_enabled = ready_xfer;
 		ddi_power_enable_5v_to_battery_xfer(xfer_enabled);
-		printk("DCDC -> batt xfer is now %s\n", xfer_enabled ? "enabled" : "disabled");
+		BATT_LOG("DCDC -> batt xfer is now %s\n", xfer_enabled ? "enabled" : "disabled");
 	}
 }
 
@@ -437,6 +477,8 @@ static void state_machine_work(struct work_struct *work)
 {
 	struct mxs_info *info = container_of(work, struct mxs_info, sm_work);
 
+	print_irq_event();
+
 	mutex_lock(&info->sm_lock);
 
 	handle_battery_voltage_changes(info); /* handle batt vol change */
@@ -497,42 +539,32 @@ out:
 #ifndef POWER_FIQ
 static irqreturn_t mxs_irq_dcdc4p2_bo(int irq, void *cookie)
 {
-	printk("%s shutting down...\n", __FUNCTION__);
-	mdelay(500);
+	save_irq_event(irq);
 	ddi_power_handle_dcdc4p2_bo();
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t mxs_irq_batt_brnout(int irq, void *cookie)
 {
-	printk("%s shutting down...\n", __FUNCTION__);
-	mdelay(500);
-	ddi_power_shutdown();
+	ddi_power_shutdown("batt \\|/");
 	return IRQ_HANDLED;
 }
 
-
 static irqreturn_t mxs_irq_vddd_brnout(int irq, void *cookie)
 {
-	printk("%s shutting down...\n", __FUNCTION__);
-	mdelay(500);
-	ddi_power_shutdown();
+	ddi_power_shutdown("vddd \\|/");
 	return IRQ_HANDLED;
 }
 static irqreturn_t mxs_irq_vdda_brnout(int irq, void *cookie)
 {
-	printk("%s shutting down...\n", __FUNCTION__);
-	mdelay(500);
-	ddi_power_shutdown();
+	ddi_power_shutdown("vdda \\|/");
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t mxs_irq_vdd5v_droop(int irq, void *cookie)
 {
+	save_irq_event(irq);
 	ddi_power_handle_vdd5v_droop();
-	printk("wangluheng %s...\n", __FUNCTION__);
-	/*mdelay(5000);*/
-
 	return IRQ_HANDLED;
 }
 
@@ -540,8 +572,7 @@ static irqreturn_t mxs_irq_vdd5v_droop(int irq, void *cookie)
 
 static irqreturn_t mxs_irq_vddio_brnout(int irq, void *cookie)
 {
-	printk("wangluheng %s...\n", __FUNCTION__);
-	/*mdelay(5000);*/
+	save_irq_event(irq);
 	ddi_power_handle_vddio_brnout();
 	return IRQ_HANDLED;
 }
@@ -560,6 +591,7 @@ static irqreturn_t mxs_irq_vdd5v(int irq, void *cookie)
 	struct mxs_info *info = (struct mxs_info *)cookie;
 	enum ddi_power_5v_status event = ddi_power_GetPmu5vStatus();
 
+	save_irq_event(irq);
 	if ((new_5v_connection == event) || (new_5v_disconnection == event)) {
 			if (new_5v_connection == event)               /* save event stamp */
 				info->sm_new_5v_connection_jiffies = jiffies;
@@ -569,7 +601,6 @@ static irqreturn_t mxs_irq_vdd5v(int irq, void *cookie)
 			ddi_power_disable_5v_connection_irq();        /* disable detect irq */
 			mod_timer(&info->sm_timer, jiffies + 1);      /* schedule state-machine right away */
 			info->is_5v_irq_detected = 1;                 /* mark the event unhandled */
-			printk("wangluheng new 5v connection detected\n");
 	}
 	return IRQ_HANDLED;
 }
@@ -729,13 +760,13 @@ static int mxs_init_irqs(struct platform_device *pdev)
 	} else
 		info->irq_batt_brnout = IRQ_BATT_BRNOUT;
 
-	/*if ((ret = devm_request_threaded_irq(&(pdev->dev), IRQ_VDDD_BRNOUT, mxs_irq_vddd_brnout,
+	if ((ret = devm_request_threaded_irq(&(pdev->dev), IRQ_VDDD_BRNOUT, mxs_irq_vddd_brnout,
 			NULL, 0, dev_name(&(pdev->dev)), info)))
 	{
 		dev_err(info->dev, "failed to request IRQ_VDDD_BRNOUT\n");
 		goto out;
 	} else
-		info->irq_vddd_brnout = IRQ_VDDD_BRNOUT;*/
+		info->irq_vddd_brnout = IRQ_VDDD_BRNOUT;
 
 	if ((ret = devm_request_threaded_irq(&(pdev->dev), IRQ_VDDA_BRNOUT, mxs_irq_vdda_brnout,
 			NULL, 0, dev_name(&(pdev->dev)), info)))

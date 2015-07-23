@@ -2,6 +2,7 @@
 
 #include "ddi_bc.h"
 #include "ddi_bc_internal.h"
+#include "mxs-battery.h"
 
 #include <linux/delay.h>
 
@@ -80,7 +81,7 @@ static void transtate(ddi_bc_State_t newstate, uint16_t charging_current, uint16
 		ddi_bc_RampReset();
 	}
 
-	printk("Battery charger: %s -> %s!\n", ddi_bc_state_names[g_ddi_bc_State], ddi_bc_state_names[newstate]);
+	BATT_LOG("Battery charger: %s -> %s!\n", ddi_bc_state_names[g_ddi_bc_State], ddi_bc_state_names[newstate]);
 	g_ddi_bc_State = newstate;
 }
 

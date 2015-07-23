@@ -2,6 +2,13 @@
 
 #define __POWER__MXS_BATTERY_H
 
+#define DBG_BATT 1
+#if DBG_BATT
+#define BATT_LOG printk
+#else
+#define BATT_LOG(x,...) do {} while(0)
+#endif
+
 
 /* DIG_CTL REGS DEFINITION */
 #define HW_DIGCTL_MICROSECONDS	(0x000000c0)

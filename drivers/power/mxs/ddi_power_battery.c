@@ -527,7 +527,7 @@ int ddi_power_init_battery(void)
 	} else {
 		ddi_pwr_init_batt_mon(); /* lradc-ch-7 to measure batt-vol and cp to power module per 100ms */
 	}
-	printk("Battery voltage measured: %d\n", ddi_power_GetBattery());
+	BATT_LOG("Battery voltage measured: %d\n", ddi_power_GetBattery());
 
 	ddi_power_init_handoff();    /* start detecting 5v plug/unplug */
 
@@ -995,8 +995,10 @@ uint16_t ddi_power_set_4p2_ilimit(uint16_t ilimit)
 }
 
 /* [luheng] power down the device */
-void ddi_power_shutdown(void)
+void ddi_power_shutdown(char *reason)
 {
+	printk("power down: %s\n", reason);
+	mdelay(500);
 	WR_PWR_REG(0x3e770001, HW_POWER_RESET);
 }
 
@@ -1034,7 +1036,7 @@ void ddi_power_handle_vddio_brnout(void)
 		 || (state5v == new_5v_disconnection)) { /* it's a flase detection caused by 5v detach/attach */
 		ddi_power_enable_vddio_interrupt(false);
 	} else {
-		ddi_power_shutdown();
+		ddi_power_shutdown("vddio \\|/");
 	}
 }
 
@@ -1052,7 +1054,7 @@ void ddi_power_handle_vdd5v_droop(void)
 
 	/* if batt-BO occurs, shutdown asap */
 	if (RD_PWR_REG(HW_POWER_STS) & BM_POWER_STS_BATT_BO)
-		ddi_power_shutdown();
+		ddi_power_shutdown("5v \\|/ wo batt");
 
 	/* due to 5v connect vddio bo chip bug, we need to
 	 * disable vddio interrupts until we reset the 5v

@@ -80,7 +80,7 @@ void ddi_power_Set4p2BoLevel(uint16_t bo_voltage_mv);
 void ddi_power_EnableBatteryBoInterrupt(bool bEnable);
 void ddi_power_handle_cmptrip(void);
 uint16_t ddi_power_set_4p2_ilimit(uint16_t ilimit);
-void ddi_power_shutdown(void);
+void ddi_power_shutdown(char *);
 void ddi_power_handle_dcdc4p2_bo(void);
 void ddi_power_enable_vddio_interrupt(bool enable);
 void ddi_power_handle_vddio_brnout(void);
