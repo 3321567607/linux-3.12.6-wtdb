@@ -96,16 +96,16 @@ struct mxs_info {
 #define is_ac_online() ddi_power_Get5vPresentFlag()
 
 /*
- * last:  latest logged event, write from next
- * first: first  logged event to be read, read from here
+ * ring buff of irq event.
+ *
+ * tail_ev: latest logged event unread, write from next
+ * head_ev: first  logged event unread, read from here until tail_ev
  */
 #define BAT_MAX_EVENTS 20
 #define BAT_NEXT_INDEX(n) ((((n) + 1) == BAT_MAX_EVENTS) ? 0 : ((n) + 1))
-#define BAT_BUF_FULL(fir,las) (((BAT_NEXT_INDEX(las)) == (fir)) ? true : false)
-#define BAT_BUF_EMPTY(fir,las) (((fir) == (las)) ? true : false)
-static int event_log[BAT_MAX_EVENTS] = {0};
-static int first_ev = 0;
-static int last_ev = 0;
+static int event_log[BAT_MAX_EVENTS];
+static int head_ev = 0;
+static int tail_ev = 0;
 
 int mxs_pwr_irqs[NUMS_MXS_PWR_IRQS];
 /*void __iomem *mxs_digctl_base;*/
@@ -145,28 +145,31 @@ static ddi_bc_Cfg_t battery_data = {
 
 static void save_irq_event(int irq)
 {
-	if (!BAT_BUF_FULL(first_ev,last_ev)) {
-		last_ev = BAT_NEXT_INDEX(last_ev);
-		event_log[last_ev] = irq;
+	if ((-1) == event_log[tail_ev]) {
+		event_log[tail_ev] = irq;
+		tail_ev = BAT_NEXT_INDEX(tail_ev);
 	}
 }
 static void print_irq_event(void)
 {
-	int irq = -1;
+	int irq;
+	int i = 1;
 
-	while (!BAT_BUF_EMPTY(first_ev,last_ev)) {
-		irq = event_log[first_ev];
-		event_log[first_ev] = -1;
-		first_ev = BAT_NEXT_INDEX(first_ev);
+	while ((-1) != event_log[head_ev]) {
+		irq = event_log[head_ev];
+		event_log[head_ev] = -1;
+		head_ev = BAT_NEXT_INDEX(head_ev);
 
 		if (IRQ_DCDC4P2_BRNOUT == irq)
-			BATT_LOG("irq 4.2v \\|/\n");
+			BATT_LOG("irq 4.2v \\|/ %d\n", i++);
 		else if (IRQ_VDD5V_DROOP == irq)
-			BATT_LOG("irq 5v \\|/\n");
+			BATT_LOG("irq 5v \\|/ %d\n", i++);
 		else if (IRQ_VDD5V == irq)
-			BATT_LOG("irq 5v on/off\n");
+			BATT_LOG("irq 5v on/off %d\n", i++);
 		else if (IRQ_VDDIO_BRNOUT == irq)
-			BATT_LOG("irq 3.3v \\|/\n");
+			BATT_LOG("irq 3.3v \\|/ %d\n", i++);
+		else
+			BATT_LOG("unknown irq %d \\|/ %d\n",irq, i++);
 	}
 }
 
@@ -552,7 +555,12 @@ static irqreturn_t mxs_irq_batt_brnout(int irq, void *cookie)
 
 static irqreturn_t mxs_irq_vddd_brnout(int irq, void *cookie)
 {
+#if 0
+	printk("vddd \\|/\n");
+	WR_PWR_REG(BM_POWER_CTRL_VDDD_BO_IRQ,HW_POWER_CTRL_CLR);
+#else
 	ddi_power_shutdown("vddd \\|/");
+#endif
 	return IRQ_HANDLED;
 }
 static irqreturn_t mxs_irq_vdda_brnout(int irq, void *cookie)
@@ -640,6 +648,14 @@ static int mxs_bat_init_regs(struct platform_device *pdev)
 	IRQ_DCDC4P2_BRNOUT = platform_get_irq_byname(pdev, "dcdc4p2_bo");
 	IRQ_VDD5V          = platform_get_irq_byname(pdev, "vdd5v");
 
+	printk("IRQ_BATT_BRNOUT: %d\n", IRQ_BATT_BRNOUT);
+	printk("IRQ_VDDD_BRNOUT: %d\n", IRQ_VDDD_BRNOUT);
+	printk("IRQ_VDDIO_BRNOUT: %d\n", IRQ_VDDIO_BRNOUT);
+	printk("IRQ_VDDA_BRNOUT: %d\n", IRQ_VDDA_BRNOUT);
+	printk("IRQ_VDD5V_DROOP: %d\n", IRQ_VDD5V_DROOP);
+	printk("IRQ_DCDC4P2_BRNOUT: %d\n", IRQ_DCDC4P2_BRNOUT);
+	printk("IRQ_VDD5V: %d\n", IRQ_VDD5V);
+
 	if (    (IRQ_BATT_BRNOUT  < 0) || (IRQ_VDDD_BRNOUT < 0)
 	     || (IRQ_VDDIO_BRNOUT < 0) || (IRQ_VDDA_BRNOUT < 0)
 	     || (IRQ_VDD5V_DROOP  < 0) || (IRQ_DCDC4P2_BRNOUT < 0) || (IRQ_VDD5V < 0)
@@ -722,10 +738,14 @@ static void mxs_free_irqs(struct platform_device *pdev)
 static int mxs_init_irqs(struct platform_device *pdev)
 {
 	int ret = 0;
+	int index;
 	struct mxs_info *info = platform_get_drvdata(pdev);
 
 	if (NULL == info)
 		return -EINVAL;
+
+	for (index = 0; index < BAT_MAX_EVENTS; index++)
+		event_log[index] = -1;
 
 	if ((ret = devm_request_threaded_irq(&(pdev->dev), IRQ_VDD5V, mxs_irq_vdd5v,
 			NULL, IRQF_SHARED, dev_name(&(pdev->dev)), info)))

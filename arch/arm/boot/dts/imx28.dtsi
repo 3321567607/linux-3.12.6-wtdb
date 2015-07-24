@@ -401,7 +401,7 @@
 						0x4080 /* MX28_PAD_ENET0_TXD1__ENET0_TXD1 */
 						0x4100 /* MX28_PAD_ENET_CLK__CLKCTRL_ENET */
 					>;
-					fsl,drive-strength = <1>;
+					fsl,drive-strength = <0>;
 					fsl,voltage = <1>;
 					fsl,pull-up = <1>;
 				};
