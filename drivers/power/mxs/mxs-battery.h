@@ -2,7 +2,7 @@
 
 #define __POWER__MXS_BATTERY_H
 
-#define DBG_BATT 1
+#define DBG_BATT 0
 #if DBG_BATT
 #define BATT_LOG printk
 #else
