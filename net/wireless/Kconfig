@@ -141,7 +141,7 @@ config CFG80211_WEXT
 
 config LIB80211
 	tristate
-	default n
+	default y
 	help
 	  This options enables a library of common routines used
 	  by IEEE802.11 wireless LAN drivers.
