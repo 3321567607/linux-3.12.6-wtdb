@@ -2,7 +2,7 @@
 
 #define __POWER__MXS_BATTERY_H
 
-#define DBG_BATT 0
+#define DBG_BATT 1
 #if DBG_BATT
 #define BATT_LOG printk
 #else
@@ -29,6 +29,14 @@ enum MXS_PWR_IRQ_INDEX_type {
 	INDEX_IRQ_VDD5V,
 	NUMS_MXS_PWR_IRQS,
 };
+
+enum MXS_5V_IRQ_TYPE {
+	NOTHING_HAPPEND,
+	NEW_5V_CONNECTED,
+	NEW_5V_DISCONNECTED,
+};
+
+#define MXS_DELTA(prev,now) ((now) > (prev)) ? ((now) - (prev)) : ((now) + (0xffffffff - (prev)))
 
 #define IRQ_BATT_BRNOUT		(mxs_pwr_irqs[INDEX_IRQ_BATT_BO])
 #define IRQ_VDDD_BRNOUT		(mxs_pwr_irqs[INDEX_IRQ_VDDD_BO])

@@ -34,6 +34,8 @@
 #include "regs-lradc.h"
 #include "regs-power.h"
 
+extern ddi_power_5vDetection_t DetectionMethod;
+
 struct mxs_info {
 	struct device *dev;
 	struct regulator *regulator;
@@ -58,8 +60,7 @@ struct mxs_info {
 
 	int is_ac_online;
 	int source_protection_mode;
-	uint32_t sm_new_5v_connection_jiffies;
-	uint32_t sm_new_5v_disconnection_jiffies;
+	uint32_t irq_5v_jiffies;
 	enum application_5v_status sm_5v_connection_status;
 
 
@@ -74,7 +75,7 @@ struct mxs_info {
 	int onboard_vbus5v_online;
 
 	int powersource;
-	int is_5v_irq_detected;
+	int is_5v_irq_detected; /* 0: no irq;  1: 5v-on irq;  2: 5v-off irq */
 	u32	clks[10];
 	struct clk *lradc_clk;
 };
@@ -94,6 +95,60 @@ struct mxs_info {
 
 
 #define is_ac_online() ddi_power_Get5vPresentFlag()
+
+#define MXS_DISABLE_5V_ON_INT() \
+  WR_PWR_REG(   BM_POWER_CTRL_ENIRQ_VBUS_VALID \
+              | BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO, \
+              HW_POWER_CTRL_CLR)
+
+#define MXS_ENABLE_5V_ON_INT() \
+  do { \
+    WR_PWR_REG(BM_POWER_CTRL_VBUSVALID_IRQ | BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ, HW_POWER_CTRL_CLR); \
+    if (DetectionMethod == DDI_POWER_5V_VDD5V_GT_VDDIO) { \
+        WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO, HW_POWER_CTRL_SET); \
+    } else { \
+        WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VBUS_VALID, HW_POWER_CTRL_SET); \
+    } \
+  } while (0)
+
+#define MXS_DISABLE_5V_OFF_INT() WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDD5V_DROOP, HW_POWER_CTRL_CLR)
+
+#define MXS_ENABLE_5V_OFF_INT()                                     \
+  do {                                                              \
+    WR_PWR_REG(BM_POWER_CTRL_VDD5V_DROOP_IRQ,   HW_POWER_CTRL_CLR); \
+    WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDD5V_DROOP, HW_POWER_CTRL_SET); \
+  } while (0)
+
+#define MXS_ENABLE_VDD_D_A_IO_INT() \
+  do { \
+    WR_PWR_REG(BM_POWER_CTRL_VDDD_BO_IRQ   | BM_POWER_CTRL_VDDA_BO_IRQ   | BM_POWER_CTRL_VDDIO_BO_IRQ,   HW_POWER_CTRL_CLR); \
+    WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDDD_BO | BM_POWER_CTRL_ENIRQ_VDDA_BO | BM_POWER_CTRL_ENIRQ_VDDIO_BO, HW_POWER_CTRL_SET); \
+  } while (0)
+
+#define MXS_DISABLE_VDD_D_A_IO_INT() WR_PWR_REG( \
+   BM_POWER_CTRL_ENIRQ_VDDD_BO \
+ | BM_POWER_CTRL_ENIRQ_VDDA_BO \
+ | BM_POWER_CTRL_ENIRQ_VDDIO_BO, \
+ HW_POWER_CTRL_CLR)
+
+#define MXS_DISABLE_SHUTDWN_ON_VDD_D_A_IO_BO() \
+  do { \
+    CLR_PWR_REG_BITS(HW_POWER_VDDDCTRL,  BM_POWER_VDDDCTRL_PWDN_BRNOUT); \
+    CLR_PWR_REG_BITS(HW_POWER_VDDACTRL,  BM_POWER_VDDACTRL_PWDN_BRNOUT); \
+    CLR_PWR_REG_BITS(HW_POWER_VDDIOCTRL, BM_POWER_VDDIOCTRL_PWDN_BRNOUT); \
+  } while (0)
+
+#define MXS_DISABLE_VDDD_INT()
+#define MXS_ENABLE_VDDD_INT()
+
+#define MXS_DISABLE_BAT_INT()
+#define MXS_ENABLE_BAT_INT()
+
+#define MXS_DISABLE_VDDA_INT()
+#define MXS_ENABLE_VDDA_INT()
+
+#define MXS_DISABLE_VDDIO_INT()
+#define MXS_ENABLE_VDDIO_INT()
 
 /*
  * ring buff of irq event.
@@ -184,31 +239,27 @@ void hw_lradc_set_delay_trigger(int trgr, u32 trgr_lradc, u32 delay_trgr, u32 lo
 
 void init_protection(struct mxs_info *info)
 {
-	enum ddi_power_5v_status pmu_5v_status;
-	uint16_t battery_voltage;
-
-	pmu_5v_status = ddi_power_GetPmu5vStatus();
-	battery_voltage = ddi_power_GetBattery();
-
 	/* enable vddd/vdda/vddio BO INT, don't shutdown on them */
-	ddi_power_InitOutputBrownouts();
+	MXS_ENABLE_VDD_D_A_IO_INT();
+	MXS_DISABLE_SHUTDWN_ON_VDD_D_A_IO_BO();
 
-	/* whitetiger don't care, cause we have both 5v & batt */
-	if (info->powersource == NO_VDD5V_SOURCE) {
+	if (ddi_power_Get5vPresentFlag() && ddi_power_check_4p2_bits()) {    /* powered by 5v, disable batt-BO */
+		ddi_power_EnableBatteryBoInterrupt(false);
+	} else {                                                             /* powered by batt, enable batt-BO INT */
 		ddi_power_EnableBatteryBoInterrupt(true);
-		return;
 	}
 
-	if ((pmu_5v_status == existing_5v_connection) && ddi_power_check_4p2_bits()) { /* by 5v now */
-		ddi_power_enable_5v_disconnect_detection(); /* start detecting 5v detach */
-		ddi_power_init_4p2_protection();            /* enable VBUSDROOP INT */
+	/* set 5v-droop thresh at < 4.3V */
+	WR_PWR_REG(BM_POWER_5VCTRL_VBUSDROOP_TRSH, HW_POWER_5VCTRL_CLR);
+	/* always detect attaching */
+	WR_PWR_REG(BM_POWER_CTRL_POLARITY_VDD5V_GT_VDDIO | BM_POWER_CTRL_POLARITY_VBUSVALID, HW_POWER_CTRL_SET);
 
-		ddi_power_EnableBatteryBoInterrupt(false);
-		info->sm_5v_connection_status = _5v_connected_verified;
-	} else {                                                                        /* by batt now */
-		info->sm_5v_connection_status = _5v_disconnected_verified;
-		ddi_power_EnableBatteryBoInterrupt(true);
-
+	if (ddi_power_Get5vPresentFlag()) { /* 5v on , enable off INT, disable on INT */
+		MXS_ENABLE_5V_OFF_INT();
+		MXS_DISABLE_5V_ON_INT();
+	} else {                            /* 5v off, disable off INT, enable on INT */
+		MXS_DISABLE_5V_OFF_INT();
+		MXS_ENABLE_5V_ON_INT();
 	}
 
 	/* all brownouts are now handled software fiqs.  We
@@ -225,6 +276,50 @@ void init_protection(struct mxs_info *info)
 #endif
 }
 
+static void check_and_handle_5v_connection(struct mxs_info *info)
+{
+	unsigned long flags;
+	unsigned int now, prev;
+	/* if 5v is not on, and we're charging, turn off charger right away */
+	if (    (!ddi_power_Get5vPresentFlag())
+	     && (ddi_bc_GetState() >= DDI_BC_STATE_WAITING_TO_CHARGE)
+	   )
+	{
+		ddi_bc_SetDisable();
+		ddi_bc_RampSetLimit(0);
+	}
+
+	if (NOTHING_HAPPEND == info->is_5v_irq_detected)
+		return;
+
+	local_irq_save(flags);
+
+	now = jiffies_to_msecs(jiffies);
+	prev = jiffies_to_msecs(info->irq_5v_jiffies);
+	if (MXS_DELTA(prev,now) > _5V_DEBOUNCE_TIME_MS) {
+		if (NEW_5V_CONNECTED == info->is_5v_irq_detected) {
+			if (!ddi_power_Enable4p2(450)) {
+				/* bring 5v->charger_&_4p2->DCDC failed, treat it as 5v droop, keep on waiting 5v on */
+				info->is_5v_irq_detected = NOTHING_HAPPEND;
+				return;
+			}
+			ddi_power_enable_vddio_interrupt(true);
+			WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDDD_BO, HW_POWER_CTRL_SET);
+			WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDDA_BO, HW_POWER_CTRL_SET);
+		} else {
+			ddi_power_execute_5v_to_battery_handoff();
+			ddi_power_enable_5v_connect_detection();
+			ddi_power_enable_vddio_interrupt(true);
+			__raw_writel(__raw_readl(REGS_POWER_BASE +
+				HW_POWER_5VCTRL) &
+				(~BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT)
+				| (0x20 << BP_POWER_5VCTRL_CHARGE_4P2_ILIMIT),
+				REGS_POWER_BASE + HW_POWER_5VCTRL);
+		}
+	}
+
+	local_irq_restore(flags);
+}
 
 /*
  * [luheng] check and handle 5v detach/attach
@@ -239,7 +334,8 @@ void init_protection(struct mxs_info *info)
  * 3) enable vddio-BO INT, this is disabled in the INT handler
  * 4) reset batt charging structure.
  */
-static void check_and_handle_5v_connection(struct mxs_info *info)
+#if 0
+static void old_check_and_handle_5v_connection(struct mxs_info *info)
 {
 	switch (ddi_power_GetPmu5vStatus()) {
 		case new_5v_connection:
@@ -304,6 +400,7 @@ static void check_and_handle_5v_connection(struct mxs_info *info)
 			break;
 	}
 }
+#endif
 
 /* [luheng] adjust 4p2-batt cmptrip, 5v-droop behavior according to cur batt-vol */
 static void handle_battery_voltage_changes(struct mxs_info *info)
@@ -569,10 +666,45 @@ static irqreturn_t mxs_irq_vdda_brnout(int irq, void *cookie)
 	return IRQ_HANDLED;
 }
 
+/*
+ * [luheng]
+ * 5v-droop irq handler.
+ *		1. set 4p2 target = batt vol, 4p2<->batt cmptrip = (1.05 * batt)
+ *		2. if batt-BO, shut down immediately
+ *		3. disable vddio/4p2/vddd BO INT, disable 5v-droop INT, only enable BATT-BO INT
+ */
 static irqreturn_t mxs_irq_vdd5v_droop(int irq, void *cookie)
 {
+	struct mxs_info *info = (struct mxs_info *)cookie;
+
+	/* if batt-BO occurs, shutdown asap */
+	if (RD_PWR_REG(HW_POWER_STS) & BM_POWER_STS_BATT_BO)
+		ddi_power_shutdown("5v \\|/ wo batt");
+
+	info->is_5v_irq_detected = NEW_5V_DISCONNECTED;
+	info->irq_5v_jiffies = jiffies;
 	save_irq_event(irq);
-	ddi_power_handle_vdd5v_droop();
+
+	/* due to 5v connect vddio bo chip bug, we need to
+	 * disable vddio interrupts until we reset the 5v
+	 * detection for 5v connect detect.  We want to allow
+	 * some debounce time before enabling connect detection.
+	 */
+	MXS_DISABLE_VDD_D_A_IO_INT();
+
+	ddi_power_EnableDcdc4p2BoInterrupt(false); /* disable 4p2 */
+	ddi_power_EnableBatteryBoInterrupt(true); /* enable BATT-BO INT */
+
+	/* disable myself, enable detecting ON */
+	MXS_DISABLE_5V_OFF_INT();
+	MXS_ENABLE_5V_ON_INT();
+
+	/* when (4p2 >= 1.05 * batt), 4p2 is regarded as higher than batt; set 4p2 target vol as batt vol */
+	SET_PWR_REG_BITS(HW_POWER_DCDC4P2, BF_POWER_DCDC4P2_CMPTRIP(0x1F) | BM_POWER_DCDC4P2_TRG);
+
+	/* schedule machine state right away */
+	mod_timer(&info->sm_timer, jiffies + 1);
+
 	return IRQ_HANDLED;
 }
 
@@ -581,35 +713,31 @@ static irqreturn_t mxs_irq_vdd5v_droop(int irq, void *cookie)
 static irqreturn_t mxs_irq_vddio_brnout(int irq, void *cookie)
 {
 	save_irq_event(irq);
-	ddi_power_handle_vddio_brnout();
+	ddi_power_shutdown("vddio \\|/");
 	return IRQ_HANDLED;
 }
 
 /*
  * [luheng]
- * 5v detach/attach irq handler
- *   1. disable detach/attach irq, this will be re-enabled by real
- *      handler called from state-machine.
- *   2. mark the event not handled.
- *   3. save event stamp and schedule state-machine right away,
- *      state-machine will do real handling 500ms after the event stamp.
+ * 5v attach irq handler
+ *   1. disable attach irq, this will be re-enabled by 5v_droop handler
+ *   2. save event stamp.
  */
 static irqreturn_t mxs_irq_vdd5v(int irq, void *cookie)
 {
 	struct mxs_info *info = (struct mxs_info *)cookie;
-	enum ddi_power_5v_status event = ddi_power_GetPmu5vStatus();
+
+	info->irq_5v_jiffies = jiffies;
+	info->is_5v_irq_detected = NEW_5V_CONNECTED;
 
 	save_irq_event(irq);
-	if ((new_5v_connection == event) || (new_5v_disconnection == event)) {
-			if (new_5v_connection == event)               /* save event stamp */
-				info->sm_new_5v_connection_jiffies = jiffies;
-			else
-				info->sm_new_5v_disconnection_jiffies = jiffies;
 
-			ddi_power_disable_5v_connection_irq();        /* disable detect irq */
-			mod_timer(&info->sm_timer, jiffies + 1);      /* schedule state-machine right away */
-			info->is_5v_irq_detected = 1;                 /* mark the event unhandled */
-	}
+	/* disable myself */
+	MXS_DISABLE_5V_ON_INT();
+
+	/* schedule machine state right away */
+	mod_timer(&info->sm_timer, jiffies + 1);
+
 	return IRQ_HANDLED;
 }
 
