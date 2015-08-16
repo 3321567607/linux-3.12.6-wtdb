@@ -184,7 +184,7 @@
 				compatible = "fsl,imx28-power";
 				status = "okay";
 				interrupts = <0 1 2 3 4 5 6>;
-				clocks = <&clks 41>;
+				clocks = <&clks 41>; /* lradc clock */
 				interrupt-names = "batt_bo", "vddd_bo", "vddio_bo",
 					"vdda_bo", "vdd5v_droop", "dcdc4p2_bo", "vdd5v";
 			};

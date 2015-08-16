@@ -3,78 +3,12 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <asm/processor.h> /* cpu_relax */
-#include "ddi_bc.h"
 #include "regs-power.h"
 #include "regs-lradc.h"
-#include "ddi_bc_internal.h"
 #include "mxs-battery.h"
-
-/* brief Base voltage to start battery calculations for LiIon */
-#define BATT_BRWNOUT_LIION_BASE_MV 2800
-
-/* brief Constant to help with determining whether to round up or not during calculation */
-#define BATT_BRWNOUT_LIION_CEILING_OFFSET_MV 39
-
-/* brief Number of mV to add if rounding up in LiIon mode */
-#define BATT_BRWNOUT_LIION_LEVEL_STEP_MV 40
-
-/* brief Constant value to be calculated by preprocessing */
-#define BATT_BRWNOUT_LIION_EQN_CONST \
-	(BATT_BRWNOUT_LIION_BASE_MV - BATT_BRWNOUT_LIION_CEILING_OFFSET_MV)
-
-/* brief Base voltage to start battery calculations for Alkaline/NiMH */
-#define BATT_BRWNOUT_ALKAL_BASE_MV 800
-
-/* brief Constant to help with determining whether to round up or */
-/*  not during calculation */
-#define BATT_BRWNOUT_ALKAL_CEILING_OFFSET_MV 19
-
-/* brief Number of mV to add if rounding up in Alkaline/NiMH mode */
-#define BATT_BRWNOUT_ALKAL_LEVEL_STEP_MV 20
-
-/* brief Constant value to be calculated by preprocessing */
-#define BATT_BRWNOUT_ALKAL_EQN_CONST \
-	(BATT_BRWNOUT_ALKAL_BASE_MV - BATT_BRWNOUT_ALKAL_CEILING_OFFSET_MV)
-
-#define GAIN_CORRECTION 1012    /* 1.012 */
-
-#define VBUSVALID_THRESH_2_90V		0x0
-#define VBUSVALID_THRESH_4_00V		0x1
-#define VBUSVALID_THRESH_4_10V		0x2
-#define VBUSVALID_THRESH_4_20V		0x3
-#define VBUSVALID_THRESH_4_30V		0x4
-#define VBUSVALID_THRESH_4_40V		0x5
-#define VBUSVALID_THRESH_4_50V		0x6
-#define VBUSVALID_THRESH_4_60V		0x7
-
-#define LINREG_OFFSET_STEP_BELOW	0x2
-#define BP_POWER_BATTMONITOR_BATT_VAL	16
-#define BP_POWER_CHARGE_BATTCHRG_I	0
-#define BP_POWER_CHARGE_STOP_ILIMIT	8
-
-#define VDD4P2_ENABLED
-
-#define DDI_POWER_BATTERY_XFER_THRESHOLD_MV 3200
+#include "ddi_power_battery.h"
 
 
-#ifndef BATTERY_VOLTAGE_CMPTRIP100_THRESHOLD_MV
-#define BATTERY_VOLTAGE_CMPTRIP100_THRESHOLD_MV 4000
-#endif
-
-#ifndef BATTERY_VOLTAGE_CMPTRIP105_THRESHOLD_MV
-#define BATTERY_VOLTAGE_CMPTRIP105_THRESHOLD_MV 3800
-#endif
-
-/* #define DEBUG_IRQS */
-
-/* to be re-enabled once FIQ functionality is added */
-#define DISABLE_VDDIO_BO_PROTECTION
-
-/* Select your 5V Detection method */
-static uint32_t bit_irqen_presence5v = BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO;
-ddi_power_5vDetection_t DetectionMethod = DDI_POWER_5V_VDD5V_GT_VDDIO;
-/* static uint32_t bit_irqen_presence5v = BM_POWER_CTRL_ENIRQ_VBUS_VALID */
-/* static ddi_power_5vDetection_t DetectionMethod = DDI_POWER_5V_VBUSVALID; */
 
 
 /* current represented by bitfields HW_POWER_CHARGE.STOP_ILIMIT and HW_POWER_CHARGE.BATTCHRG_I.
@@ -85,15 +19,15 @@ static const uint16_t currentPerBit[] = {  10,  20,  50, 100, 200, 400 };
 /* [luheng] convert a current value to bitfields, where
  *     bit0:10mA, bit1:20mA, bit2:50mA, bit3:100mA, bit4:200mA, bit5:400mA
  */
-uint16_t ddi_power_convert_current_to_setting(uint16_t u16Current)
+uint16_t mxspwr_ma2bits(uint16_t u16ma)
 {
 	int       i;
 	uint16_t  u16Mask = (0x1 << 5); /* start from hightest bit, highest current */
 	uint16_t  u16Setting = 0;
 
-	for (i = 5; (i >= 0) && (u16Current > 0); i--, u16Mask >>= 1) {
-		if (u16Current >= currentPerBit[i]) {
-			u16Current -= currentPerBit[i];
+	for (i = 5; (i >= 0) && (u16ma > 0); i--, u16Mask >>= 1) {
+		if (u16ma >= currentPerBit[i]) {
+			u16ma -= currentPerBit[i];
 			u16Setting |= u16Mask;
 		}
 	}
@@ -104,120 +38,38 @@ uint16_t ddi_power_convert_current_to_setting(uint16_t u16Current)
 /* [luheng] convert a bitfields to current value where
  *     bit0:10mA, bit1:20mA, bit2:50mA, bit3:100mA, bit4:200mA, bit5:400mA
  */
-uint16_t ddi_power_convert_setting_to_current(uint16_t u16Setting)
+uint16_t mxspwr_bits2ma(uint16_t u16bits)
 {
 	int       i;
 	uint16_t  u16Mask = (0x1 << 5); /* start from hightest bit, highest current */
-	uint16_t  u16Current = 0;
+	uint16_t  u16ma = 0;
 
 	for (i = 5; i >= 0; i--, u16Mask >>= 1) {
-		if (u16Setting & u16Mask)
-			u16Current += currentPerBit[i];
+		if (u16bits & u16Mask)
+			u16ma += currentPerBit[i];
 	}
-	return u16Current;
+	return u16ma;
 }
 
 /* [luheng]
- *		1. Don't power down device for 5v-BO
- *		2. Turn on VBUSVALID comparator(>4.3v) even VDD5V_GT_VDDIO is used to detect 5v presence
+ *		1. Turn on VBUSVALID comparator(>4.3v) even VDD5V_GT_VDDIO is used to detect 5v presence
  *		3. Set vddio/vdda/vddd linreg output 25mv lower than DCDC counterpart
- *		4. clear 5v-presence irq stats and enable the irq(VBUSVALID or VDD5V-GT-VDDIO).
  */
-void ddi_power_Enable5vDetection(void)
+void ddi_set_linreg_offset(void)
 {
-	u32 setbits;
-
-	/* Don't power down device when 5V-BO happens */
-	WR_PWR_REG(BM_POWER_5VCTRL_PWDN_5VBRNOUT, HW_POWER_5VCTRL_CLR);
-
-	/* Turn on VBUSVALID comparator(>4.3v) even if VDD5V_GT_VDDIO is used for 5V presence
-	 * detection, in case other drivers (e.g. USB) might also monitor VBUSVALID status */
-	WR_PWR_REG(BM_POWER_5VCTRL_VBUSVALID_5VDETECT, HW_POWER_5VCTRL_SET);
-	WR_PWR_REG(BF_POWER_5VCTRL_VBUSVALID_TRSH(VBUSVALID_THRESH_4_30V), HW_POWER_5VCTRL_SET);
-
 	/* set vddio/vdda/vddd lingreg output 1-step-below(25mv) DCDC counterparts,
 	 * standard practive when lingreg and DCDC are all on */
-	setbits = BF_POWER_VDDIOCTRL_LINREG_OFFSET(LINREG_OFFSET_STEP_BELOW);
-	CLR_SET_PWR_REG_BITS(HW_POWER_VDDIOCTRL, BM_POWER_VDDIOCTRL_LINREG_OFFSET, setbits);
+	CLR_SET_PWR_REG_BITS(HW_POWER_VDDIOCTRL,
+		BM_POWER_VDDIOCTRL_LINREG_OFFSET,
+		BF_POWER_VDDIOCTRL_LINREG_OFFSET(LINREG_OFFSET_1_STEP_BL));
 
-	setbits = BF_POWER_VDDACTRL_LINREG_OFFSET(LINREG_OFFSET_STEP_BELOW);
-	CLR_SET_PWR_REG_BITS(HW_POWER_VDDACTRL, BM_POWER_VDDACTRL_LINREG_OFFSET, setbits);
+	CLR_SET_PWR_REG_BITS(HW_POWER_VDDACTRL,
+		BM_POWER_VDDACTRL_LINREG_OFFSET,
+		BF_POWER_VDDACTRL_LINREG_OFFSET(LINREG_OFFSET_1_STEP_BL));
 
-	setbits = BF_POWER_VDDDCTRL_LINREG_OFFSET(LINREG_OFFSET_STEP_BELOW);
-	CLR_SET_PWR_REG_BITS(HW_POWER_VDDDCTRL, BM_POWER_VDDDCTRL_LINREG_OFFSET, setbits);
-
-	/* Clear vbusvalid & vdd5v-gt-vddio interrupt flag */
-	WR_PWR_REG(BM_POWER_CTRL_VBUSVALID_IRQ,     HW_POWER_CTRL_CLR);
-	WR_PWR_REG(BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ, HW_POWER_CTRL_CLR);
-
-	/* enable either vbusvalid or vdd5v-gt-vddio irq, according to global */
-	WR_PWR_REG(bit_irqen_presence5v, HW_POWER_CTRL_SET);
-}
-
-/*
- * [luheng]
- * switch 5v-detection: detect on -> detect off
- *
- * 1. clr 5v presence INT flag
- * 2. start detecting 5v unplug
- * 3. enable DCDC_XFER
- */
-void ddi_power_enable_5v_to_battery_handoff(void)
-{
-	/* Clear 5v presence INT flag */
-	WR_PWR_REG(BM_POWER_CTRL_VBUSVALID_IRQ, HW_POWER_CTRL_CLR);
-	WR_PWR_REG(BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ, HW_POWER_CTRL_CLR);
-
-	/* TO detect 5v unplug */
-	WR_PWR_REG(BM_POWER_CTRL_POLARITY_VBUSVALID, HW_POWER_CTRL_CLR);
-	WR_PWR_REG(BM_POWER_CTRL_POLARITY_VDD5V_GT_VDDIO, HW_POWER_CTRL_CLR);
-
-/* #ifndef VDD4P2_ENABLED */
-	/* Enable automatic transition to DCDC */
-	WR_PWR_REG(BM_POWER_5VCTRL_DCDC_XFER, HW_POWER_5VCTRL_SET);
-/* #endif */
-}
-
-/*
- * [luheng]
- * switch source from 5v to battery, this is called when 5v-droop detected.
- *
- * turn off 5v->charger_&_4p2 output, turn off 5v->4p2 linreg, turn off 4p2->DCDC input
- * set VBUSVALID to 4.4v for 5v_presence detection for future 5v plug again.
- */
-void ddi_power_execute_5v_to_battery_handoff(void)
-{
-	/* disable 5v->4p2 linreg, disable 4p2 as DCDC input */
-	CLR_PWR_REG_BITS(HW_POWER_DCDC4P2, (BM_POWER_DCDC4P2_ENABLE_DCDC | BM_POWER_DCDC4P2_ENABLE_4P2));
-
-	/* turn off 5v outputs to 4p2&charger */
-	WR_PWR_REG(BM_POWER_5VCTRL_PWD_CHARGE_4P2, HW_POWER_5VCTRL_SET);
-
-	/* set VBUSVALID_TRSH 4400mV */
-	WR_PWR_REG(BM_POWER_5VCTRL_VBUSVALID_TRSH, HW_POWER_5VCTRL_CLR);
-	WR_PWR_REG(BF_POWER_5VCTRL_VBUSVALID_TRSH(VBUSVALID_THRESH_4_40V), HW_POWER_5VCTRL_SET);
-}
-
-/*
- * [luheng]
- * switch 5v-detection: detect off -> detect on, assure DCDC active after 5v is on
- *
- * 1. clr 5v presence INT flag
- * 2. start detecting 5v plug
- * 3. allow DCDC when 5v present
- */
-void ddi_power_enable_battery_to_5v_handoff(void)
-{
-	/* Clear 5v-presence irq flag */
-	WR_PWR_REG(BM_POWER_CTRL_VBUSVALID_IRQ, HW_POWER_CTRL_CLR);
-	WR_PWR_REG(BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ, HW_POWER_CTRL_CLR);
-
-	/* prepare to detect 5v plug-in */
-	WR_PWR_REG(BM_POWER_CTRL_POLARITY_VBUSVALID, HW_POWER_CTRL_SET);
-	WR_PWR_REG(BM_POWER_CTRL_POLARITY_VDD5V_GT_VDDIO, HW_POWER_CTRL_SET);
-
-	/* Allow DCDC be to active when 5V is present. */
-	WR_PWR_REG(BM_POWER_5VCTRL_ENABLE_DCDC, HW_POWER_5VCTRL_SET);
+	CLR_SET_PWR_REG_BITS(HW_POWER_VDDDCTRL,
+		BM_POWER_VDDDCTRL_LINREG_OFFSET,
+		BF_POWER_VDDDCTRL_LINREG_OFFSET(LINREG_OFFSET_1_STEP_BL));
 }
 
 /* [luheng]
@@ -228,144 +80,192 @@ void ddi_power_enable_battery_to_5v_handoff(void)
  * disconnection handling but without drawing power
  * from the power on a stable 4p2 rails (at 4.2V).
  */
-void ddi_power_handle_cmptrip(void)
+void mxspwr_adjust_cmptrip(void)
 {
-	enum ddi_power_5v_status pmu_5v_status;
-	uint32_t setbits = 0;
 	uint16_t batt_vol;
 
-	pmu_5v_status = ddi_power_GetPmu5vStatus();
-	batt_vol = ddi_power_GetBattery();
+	batt_vol = PWRREG_GET_BATVOL();
 
-	if (pmu_5v_status != existing_5v_connection)                    /* 5v changed. or remains off */
-		setbits = (31 << BP_POWER_DCDC4P2_CMPTRIP);                 /*     4p2 >= 1.05 * batt     */
-	else if (batt_vol > BATTERY_VOLTAGE_CMPTRIP100_THRESHOLD_MV)    /* bat > 4.0v                 */
-		setbits = (1 << BP_POWER_DCDC4P2_CMPTRIP);                  /*     4p2 >= 0.86 * batt     */
-	else if (batt_vol > BATTERY_VOLTAGE_CMPTRIP105_THRESHOLD_MV)    /* bat > 3.8v                 */
-		setbits = (24 << BP_POWER_DCDC4P2_CMPTRIP);                 /*     4p2 >= 1.00 * batt     */
-	else                                                            /* else                       */
-		setbits = (31 << BP_POWER_DCDC4P2_CMPTRIP);                 /*     4p2 >= 1.05 * batt     */
-
-	CLR_SET_PWR_REG_BITS(HW_POWER_DCDC4P2, BM_POWER_DCDC4P2_CMPTRIP, setbits);
-}
-
-/* [luheng] check if (batt-vol > 3.2v) */
-bool ddi_power_IsBattRdyForXfer(void)
-{
-	uint16_t u16BatteryVoltage = ddi_power_GetBattery();
-
-	if (u16BatteryVoltage > DDI_POWER_BATTERY_XFER_THRESHOLD_MV)
-		return true;
+	if (batt_vol >= 4000)
+		PWRREG_SET_CMPTRIP(CMPTRIP_4P2_GE_0_86_BAT); /* if batvol [4000,....), 4p2 >= (0.86 * batt) */
+	else if (batt_vol >= 3800)
+		PWRREG_SET_CMPTRIP(CMPTRIP_4P2_GE_1_00_BAT); /* if batvol [3800,4000), 4p2 >= (1.00 * batt) */
 	else
-		return false;
-}
-
-/* [luheng] enable 5v-droop irq after clear associated irq stat */
-void ddi_power_EnableVbusDroopIrq(void)
-{
-	WR_PWR_REG(BM_POWER_CTRL_VDD5V_DROOP_IRQ,   HW_POWER_CTRL_CLR);
-	WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDD5V_DROOP, HW_POWER_CTRL_SET);
+		PWRREG_SET_CMPTRIP(CMPTRIP_4P2_GE_1_05_BAT); /* if batvol (....,3800), 4p2 >= (1.05 * batt) */
 }
 
 /* [luheng] turn on 5v -> charger_&_4p2 -> DCDC, if battery not damaged; or just enable batt-BO irq if batt damaged
  * 5v -> charger_&_4p2 current limit: 'target_current_limit_ma'
  */
-bool ddi_power_Enable4p2(uint16_t target_current_limit_ma)
+/* 5v->4p2->DCDC is already open, just ramp-up 5v limit */
+uint16_t mxspwr_rampup_chrgr_4p2_limit(uint16_t limit_ma)
 {
-	bool success;
-
-	success = ddi_power_BringUp4p2Regulator(target_current_limit_ma);        /* turn on 5v->4p2 linreg */
-
-	if (success) {
-		ddi_power_EnableBatteryBoInterrupt(false);                           /* disable batt-BO INT */
-	} else {
-		WR_PWR_REG(BM_POWER_5VCTRL_PWD_CHARGE_4P2, HW_POWER_5VCTRL_SET);     /* turn off 5v->charger_&_4p2 route */
-		WR_PWR_REG(HW_POWER_5VCTRL_CLR,BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT);   /* charger_&_4p2_limit = 0 */
-		WR_PWR_REG(BM_POWER_5VCTRL_PWD_CHARGE_4P2, HW_POWER_5VCTRL_SET);     /* turn off 5v->4p2 linreg */
-		CLR_PWR_REG_BITS(HW_POWER_DCDC4P2, BM_POWER_DCDC4P2_ENABLE_DCDC);    /* turn off 4p2->DCDC route */
-	}
-	return success;
-}
-
-/* [luheng] turn on 5v->charger_&_4p2 route and ramp up current limit of (charger + 4p2)
- *     1. enable 5v->4p2 linreg, o4p2-BO thresh: 3.6v
- *     2. turn on 5v->charger_&_4p2 route
- *     3. ramp up current limit from 0 to 'target_current_limit_ma'
- *
- * para:
- *		target_current_limit_ma    current limit of (charger + 4p2)
- *		b4p2_dcdc_enabled          whether 4p2->DCDC route turned on? to guide how to ramp up
- */
-bool ddi_power_BringUp4p2Regulator(uint16_t target_current_limit_ma)
-{
+	uint32_t temp_reg;
 	uint16_t charge_4p2_ilimit = 0;
 
-	/* use 4p2 when (4p2pin > 1.05 * batt) */
-	CLR_SET_PWR_REG_BITS(HW_POWER_DCDC4P2, BM_POWER_DCDC4P2_CMPTRIP, (31 << BP_POWER_DCDC4P2_CMPTRIP));
-	
-	WR_PWR_REG(HW_POWER_5VCTRL_CLR,BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT);  /* charger_&_4p2_limit = 0 */
-	WR_PWR_REG(BM_POWER_CTRL_ENIRQ_DCDC4P2_BO, HW_POWER_CTRL_CLR);      /* disable 4p2-BO INT */
-	SET_PWR_REG_BITS(HW_POWER_DCDC4P2, BM_POWER_DCDC4P2_ENABLE_DCDC);   /* turn on 4p2->DCDC route */
-	SET_PWR_REG_BITS(HW_POWER_DCDC4P2, BM_POWER_DCDC4P2_ENABLE_4P2);    /* enable 5v->4p2 linreg */
-	WR_PWR_REG(BM_POWER_5VCTRL_PWD_CHARGE_4P2, HW_POWER_5VCTRL_CLR);    /* turn on 5v->charger_&_4p2 route */
+	limit_ma = mxspwr_expressible_cur(limit_ma);
 
-	ddi_power_Set4p2BoLevel(4150);                                      /* 4p2-BO thresh: 4.15v, temp for ramp up current limit */
-	WR_PWR_REG(BM_POWER_CHARGE_ENABLE_LOAD, HW_POWER_CHARGE_SET);       /* enable 100ohm load on 4p2 output temporarily for ramp up */
+	charge_4p2_ilimit = mxspwr_get_chrgr_4p2_limit();
 
-	while (charge_4p2_ilimit < target_current_limit_ma) {
-		if (RD_PWR_REG(HW_POWER_STS) & (BM_POWER_STS_VDD5V_DROOP))
-			return false;                                               /* break if 5v disappears */
+	if (charge_4p2_ilimit == limit_ma) {       /* equal trg, no need to ramp */
+		/*BATT_LOG("[BAT] 5v limit already %d, no ramp\n", charge_4p2_ilimit);*/
+		return charge_4p2_ilimit;
+	} else if (charge_4p2_ilimit > limit_ma) { /* ramp down, go directly */
+		/*BATT_LOG("[BAT] 5v ramp down from %d to %d\n", charge_4p2_ilimit, limit_ma);*/
+		mxspwr_set_chrgr_4p2_limit(limit_ma);
+		return limit_ma;
+	}
+
+	/* we need to ramp up, steply */
+
+	/* 4p2 steal charger's cur if (4p2 < (TRG - 100mV)), use cmptrip-max(4p2,batt) as DCDC src */
+	PWRREG_SET_DCDC4P2_DROPCTRL(DROPCTRL_DCSRC_CMPTRP | DROPCTRL_STLTHR_100_BL);
+	PWRREG_SET_CMPTRIP(CMPTRIP_4P2_GE_1_05_BAT);
+
+	WR_PWR_REG(HW_POWER_5VCTRL_SET, BM_POWER_5VCTRL_PWRUP_VBUS_CMPS);
+	WR_PWR_REG(HW_POWER_5VCTRL_CLR, BM_POWER_5VCTRL_VBUSVALID_5VDETECT); /* turn off vbusvalid detect. Errate */
+
+	temp_reg = (BM_POWER_CTRL_VDDD_BO_IRQ | BM_POWER_CTRL_VDDA_BO_IRQ | BM_POWER_CTRL_VDDIO_BO_IRQ |
+				 BM_POWER_CTRL_VDD5V_DROOP_IRQ | BM_POWER_CTRL_VBUSVALID_IRQ);
+
+	WR_PWR_REG(HW_POWER_CTRL_CLR, temp_reg);
+
+	/* loop until the false BO goes away or until 5V actually goes away */
+	while ((RD_PWR_REG(HW_POWER_CTRL) & temp_reg) &&
+		  !(RD_PWR_REG(HW_POWER_CTRL) & BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ))
+	{
+		WR_PWR_REG(HW_POWER_CTRL_CLR, temp_reg);
+		mdelay(1);
+	}
+
+	mxspwr_set4p2bo_thsh(4150);                                       /* set 4p2 BO thresh at 4.15V */
+
+	/* possibly not necessary but recommended, unloaded 4p2 rail */
+	WR_PWR_REG(HW_POWER_CHARGE_SET, BM_POWER_CHARGE_ENABLE_LOAD);
+
+	while (charge_4p2_ilimit < limit_ma) {                /* ramp up charger_&_4p2 cur limit */
+		if (RD_PWR_REG(HW_POWER_CTRL) & (BM_POWER_CTRL_VBUSVALID_IRQ | BM_POWER_CTRL_VDD5V_DROOP_IRQ))
+			break;
 
 		charge_4p2_ilimit += 100;
-		if (charge_4p2_ilimit > target_current_limit_ma)
-			charge_4p2_ilimit = target_current_limit_ma;
+		if (charge_4p2_ilimit > limit_ma)
+			charge_4p2_ilimit = limit_ma;
 
-		ddi_power_set_4p2_ilimit(charge_4p2_ilimit);
+		mxspwr_set_chrgr_4p2_limit(charge_4p2_ilimit);
 
-		/* 4p2-BO or 5v-droop, so if 4p2->DCDC route is off, we cannot detect 4p2-BO. */
-		if	(RD_PWR_REG(HW_POWER_STS) & BM_POWER_STS_DCDC_4P2_BO)
-			mdelay(5);        /* 4p2-BO occurs, ramp-up by step */
-		else {                /* no 4p2-BO, set ultimate limit directly */
-			charge_4p2_ilimit = target_current_limit_ma;
-			ddi_power_set_4p2_ilimit(charge_4p2_ilimit);
+		if (RD_PWR_REG(HW_POWER_STS) & BM_POWER_STS_DCDC_4P2_BO)
+			mdelay(10);
+		else {
+			charge_4p2_ilimit = limit_ma;
+			mxspwr_set_chrgr_4p2_limit(charge_4p2_ilimit);
 		}
 	}
 
-	ddi_power_Set4p2BoLevel(3600);                                      /* eventual 4p2-BO thresh for normal use */
-	WR_PWR_REG(BM_POWER_CTRL_DCDC4P2_BO_IRQ, HW_POWER_CTRL_CLR);        /* clear 4p2-BO irq stat */
-	WR_PWR_REG(BM_POWER_CHARGE_ENABLE_LOAD, HW_POWER_CHARGE_CLR);       /* disable 100ohm for normal use */
+	WR_PWR_REG(HW_POWER_CHARGE_CLR, BM_POWER_CHARGE_ENABLE_LOAD);
+	mxspwr_set4p2bo_thsh(3600);
+	WR_PWR_REG(HW_POWER_CTRL_CLR, BM_POWER_CTRL_DCDC4P2_BO_IRQ);
+	WR_PWR_REG(HW_POWER_5VCTRL_SET, BM_POWER_5VCTRL_VBUSVALID_5VDETECT);
 
-	return true;
-
+	return charge_4p2_ilimit;
 }
+
+uint16_t mxspwr_enable4p2(uint16_t limit_ma)
+{
+	uint32_t temp_reg;
+	uint16_t charge_4p2_ilimit = 0;
+
+	PWRREG_TURN_CHARGER_AND_4P2(false);                                  /* turn off charger_&_4p2 */
+
+	/* 4p2 steal charger's cur if (4p2 < (TRG - 100mV)), use cmptrip-max(4p2,batt) as DCDC src */
+	PWRREG_SET_DCDC4P2_DROPCTRL(DROPCTRL_DCSRC_CMPTRP | DROPCTRL_STLTHR_100_BL);
+
+	PWRREG_SET_4P2LDO_TRG(TRG4P2_4_2);                                   /* set 4p2 LDO target: 4.2v */
+	PWRREG_SET_CMPTRIP(CMPTRIP_4P2_GE_1_05_BAT);
+
+	WR_PWR_REG(HW_POWER_5VCTRL_SET, BM_POWER_5VCTRL_PWRUP_VBUS_CMPS);
+	WR_PWR_REG(HW_POWER_5VCTRL_CLR, BM_POWER_5VCTRL_VBUSVALID_5VDETECT); /* turn off vbusvalid detect. Errate */
+
+	SET_PWR_REG_BITS(HW_POWER_DCDC4P2, BM_POWER_DCDC4P2_ENABLE_DCDC);    /* turn on 4p2->DCDC */
+	mdelay(1);
+
+	temp_reg = (BM_POWER_CTRL_VDDD_BO_IRQ | BM_POWER_CTRL_VDDA_BO_IRQ | BM_POWER_CTRL_VDDIO_BO_IRQ |
+				 BM_POWER_CTRL_VDD5V_DROOP_IRQ | BM_POWER_CTRL_VBUSVALID_IRQ);
+
+	WR_PWR_REG(HW_POWER_CTRL_CLR, temp_reg);
+
+	/* loop until the false BO goes away or until 5V actually goes away */
+	while ((RD_PWR_REG(HW_POWER_CTRL) & temp_reg) &&
+		  !(RD_PWR_REG(HW_POWER_CTRL) & BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ))
+	{
+		WR_PWR_REG(HW_POWER_CTRL_CLR, temp_reg);
+		mdelay(1);
+	}
+
+	WR_PWR_REG(HW_POWER_5VCTRL_CLR, BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT);  /* clear charger_&_4p2 max current : 0 */
+	SET_PWR_REG_BITS(HW_POWER_DCDC4P2, BM_POWER_DCDC4P2_ENABLE_4P2);     /* turn on 4p2 linereg */
+	PWRREG_TURN_CHARGER_AND_4P2(true);                                   /* turn on charger_&_4p2 gate */
+
+	if (limit_ma > 780)
+		limit_ma = 780;
+
+	mxspwr_set4p2bo_thsh(4150);                                       /* set 4p2 BO thresh at 4.15V */
+
+	/* possibly not necessary but recommended, unloaded 4p2 rail */
+	WR_PWR_REG(HW_POWER_CHARGE_SET, BM_POWER_CHARGE_ENABLE_LOAD);
+
+	while (charge_4p2_ilimit < limit_ma) {                /* ramp up charger_&_4p2 cur limit */
+		if (RD_PWR_REG(HW_POWER_CTRL) & (BM_POWER_CTRL_VBUSVALID_IRQ | BM_POWER_CTRL_VDD5V_DROOP_IRQ))
+			break;
+
+		charge_4p2_ilimit += 100;
+		if (charge_4p2_ilimit > limit_ma)
+			charge_4p2_ilimit = limit_ma;
+
+		mxspwr_set_chrgr_4p2_limit(charge_4p2_ilimit);
+
+		if (RD_PWR_REG(HW_POWER_STS) & BM_POWER_STS_DCDC_4P2_BO)
+			mdelay(10);
+		else {
+			charge_4p2_ilimit = limit_ma;
+			mxspwr_set_chrgr_4p2_limit(charge_4p2_ilimit);
+		}
+	}
+
+	mxspwr_set4p2bo_thsh(3600);
+
+	WR_PWR_REG(HW_POWER_CTRL_CLR, BM_POWER_CTRL_DCDC4P2_BO_IRQ);
+
+	WR_PWR_REG(HW_POWER_CHARGE_CLR, BM_POWER_CHARGE_ENABLE_LOAD);
+	WR_PWR_REG(HW_POWER_5VCTRL_SET, BM_POWER_5VCTRL_VBUSVALID_5VDETECT);
+
+	return charge_4p2_ilimit;
+}
+
 
 /* [luheng] set 4p2-BO thresh, unit:mv.
  *     Note: 4p2-BO can only be detected if 4p2->DCDC input route is turned on */
-void ddi_power_Set4p2BoLevel(uint16_t bo_voltage_mv)
+void mxspwr_set4p2bo_thsh(uint16_t bo_mv)
 {
 	uint16_t bo_reg_value;
 
-	if (bo_voltage_mv < 3600)
-		bo_voltage_mv = 3600;
-	else if (bo_voltage_mv > 4375)
-		bo_voltage_mv = 4375;
+	if (bo_mv < 3600)
+		bo_mv = 3600;
+	else if (bo_mv > 4375)
+		bo_mv = 4375;
 
-	bo_reg_value = (bo_voltage_mv - 3600) / 25;
+	bo_reg_value = (bo_mv - 3600) / 25;
 
 	CLR_SET_PWR_REG_BITS(HW_POWER_DCDC4P2, BM_POWER_DCDC4P2_BO, (bo_reg_value << BP_POWER_DCDC4P2_BO));
 }
 
-/* [luheng] enable 5v detection. detect 'on' if now 'off', detect 'off' if now 'on' */
-void ddi_power_init_handoff(void)
+void hw_lradc_set_delay_trigger(int trgr, u32 trgr_lradc, u32 delay_trgr, u32 loops, u32 delays)
 {
-	ddi_power_Enable5vDetection();                /* enable 5v presence INT, if 'on' or 'off' is set \|/ */
-
-	if (ddi_power_Get5vPresentFlag())
-		ddi_power_enable_5v_to_battery_handoff(); /* 5v is on, detecting off */
-	else
-		ddi_power_enable_battery_to_5v_handoff(); /* 5v is off, detecting on, keep DCDC alive when 5v on */
+	WR_LRADC_REG(HW_LRADC_DELAYn_SET(trgr), BF_LRADC_DELAYn_TRIGGER_LRADCS(trgr_lradc));
+	WR_LRADC_REG(HW_LRADC_DELAYn_SET(trgr), BF_LRADC_DELAYn_TRIGGER_DELAYS(delay_trgr));
+	WR_LRADC_REG(HW_LRADC_DELAYn_CLR(trgr), (BM_LRADC_DELAYn_LOOP_COUNT | BM_LRADC_DELAYn_DELAY));
+	WR_LRADC_REG(HW_LRADC_DELAYn_SET(trgr), BF_LRADC_DELAYn_LOOP_COUNT(loops));
+	WR_LRADC_REG(HW_LRADC_DELAYn_SET(trgr), BF_LRADC_DELAYn_DELAY(delays));
 }
-
 /*
  * [luheng] init lradc to measure batt vol, and report to power module per 100ms
  */
@@ -374,9 +274,9 @@ static void ddi_pwr_init_batt_mon(void)
 	uint16_t wait_time = 0;
 
 	/* disable div2 */
-	WR_LRADC_REG(BF_LRADC_CTRL2_DIVIDE_BY_TWO(1 << BATTERY_VOLTAGE_CH), HW_LRADC_CTRL2_CLR);
+	WR_LRADC_REG(HW_LRADC_CTRL2_CLR, BF_LRADC_CTRL2_DIVIDE_BY_TWO(1 << BATTERY_VOLTAGE_CH));
 	/* Clear the accumulator & NUM_SAMPLES */
-	WR_LRADC_REG(0xFFFFFFFF, HW_LRADC_CHn_CLR(BATTERY_VOLTAGE_CH));
+	WR_LRADC_REG(HW_LRADC_CHn_CLR(BATTERY_VOLTAGE_CH), 0xFFFFFFFF);
 	/* forever trigger lradc-ch-7 at 100ms interval on delay-ch3 */
 	hw_lradc_set_delay_trigger(
 		LRADC_DELAY_TRIGGER_BATTERY,        /* set delay-ch-3 */
@@ -385,16 +285,16 @@ static void ddi_pwr_init_batt_mon(void)
 		0,                                  /* loop once, but since it trigger itself, forever */
 		200);                               /* timer, 200 * (1 / 2k Hz), i.e. 100ms */
 
-	/* set to LiIon scale factor */
-	WR_LRADC_REG(BM_LRADC_CONVERSION_SCALE_FACTOR, HW_LRADC_CONVERSION_CLR);
-	WR_LRADC_REG(BF_LRADC_CONVERSION_SCALE_FACTOR(BV_LRADC_CONVERSION_SCALE_FACTOR__LI_ION),
-		HW_LRADC_CONVERSION_SET);
-	/* auto update to vol_val in batt_mon */
-	WR_LRADC_REG(BM_LRADC_CONVERSION_AUTOMATIC, HW_LRADC_CONVERSION_SET);
 	/* clear previous "measured" footprint */
-	WR_LRADC_REG(1 << BATTERY_VOLTAGE_CH, HW_LRADC_CTRL1_CLR);
+	WR_LRADC_REG(HW_LRADC_CTRL1_CLR, 1 << BATTERY_VOLTAGE_CH);
+
+	/* set to LiIon scale factor */
+	WR_LRADC_REG(HW_LRADC_CONVERSION_CLR, BM_LRADC_CONVERSION_SCALE_FACTOR);
+	WR_LRADC_REG(HW_LRADC_CONVERSION_SET,
+		BF_LRADC_CONVERSION_SCALE_FACTOR(BV_LRADC_CONVERSION_SCALE_FACTOR__LI_ION));
+
 	/* kick off the trigger */
-	WR_LRADC_REG(BM_LRADC_DELAYn_KICK, HW_LRADC_DELAYn_SET(LRADC_DELAY_TRIGGER_BATTERY));
+	WR_LRADC_REG(HW_LRADC_DELAYn_SET(LRADC_DELAY_TRIGGER_BATTERY), BM_LRADC_DELAYn_KICK);
 
 	/* wait for 1st measurement before enabling auto volt update */
 	while (!(RD_LRADC_REG(HW_LRADC_CTRL1) & (1 << BATTERY_VOLTAGE_CH))
@@ -402,18 +302,14 @@ static void ddi_pwr_init_batt_mon(void)
 		wait_time++;
 		mdelay(1);
 	}
+
+	/* auto update to vol_val in batt_mon */
+	WR_LRADC_REG(HW_LRADC_CONVERSION_SET, BM_LRADC_CONVERSION_AUTOMATIC);
 }
 
 /* [luheng] enable lradc to measure batt vol, start detecting 5v plug/unplug */
-int ddi_power_init_battery(void)
+int mxspwr_init_bat(void)
 {
-	if (!(RD_PWR_REG(HW_POWER_5VCTRL) & BM_POWER_5VCTRL_ENABLE_DCDC)) {
-		printk(KERN_ERR "WARNING: Power Supply not initialized correctly\n");
-		WR_PWR_REG(BM_POWER_5VCTRL_ENABLE_DCDC,HW_POWER_5VCTRL);
-	}
-	if ((RD_PWR_REG(HW_POWER_BATTMONITOR) & BM_POWER_BATTMONITOR_BATT_VAL) == 0) {
-		printk(KERN_INFO "WARNING : No battery connected !\r\n");
-	}
 
 	if (!hw_lradc_present(BATTERY_VOLTAGE_CH)) {
 		printk(KERN_ERR "%s: hw_lradc_present failed\n", __func__);
@@ -421,14 +317,22 @@ int ddi_power_init_battery(void)
 	} else {
 		ddi_pwr_init_batt_mon(); /* lradc-ch-7 to measure batt-vol and cp to power module per 100ms */
 	}
-	BATT_LOG("Battery voltage measured: %d\n", ddi_power_GetBattery());
+	printk("[BAT]: Bat-vol: %d\n", PWRREG_GET_BATVOL());
 
-	ddi_power_init_handoff();    /* start detecting 5v plug/unplug */
+	ddi_set_linreg_offset();
+
+	WR_PWR_REG(HW_POWER_5VCTRL_CLR,
+		  BM_POWER_5VCTRL_ENABLE_LINREG_ILIMIT
+		| BM_POWER_5VCTRL_VBUSVALID_TRSH);
+
+	WR_PWR_REG(HW_POWER_5VCTRL_SET,
+		  BM_POWER_5VCTRL_VBUSVALID_5VDETECT
+		| BM_POWER_5VCTRL_DCDC_XFER
+		| BM_POWER_5VCTRL_ENABLE_DCDC
+		| BF_POWER_5VCTRL_VBUSVALID_TRSH(VBUSVALID_THRESH_4_30V));
 
 	/* Finally enable the battery adjust */
 	SET_PWR_REG_BITS(HW_POWER_BATTMONITOR, BM_POWER_BATTMONITOR_EN_BATADJ);
-	/* disable 5vlinreg current limit */
-	WR_PWR_REG(BM_POWER_5VCTRL_ENABLE_LINREG_ILIMIT, HW_POWER_5VCTRL_CLR);
 
 	/* 4p2 out: 4.2v, DROPOUT_CTRL(b1010): DCDC source = max(4p2,batt), 4p2 steal current form batt when 100mv below TRG */
 	CLR_SET_PWR_REG_BITS(HW_POWER_DCDC4P2,
@@ -436,514 +340,107 @@ int ddi_power_init_battery(void)
 		(0xa << BP_POWER_DCDC4P2_DROPOUT_CTRL));
 
 	/* HEADROOM_ADJ to 4 */
-	CLR_SET_PWR_REG_BITS(BM_POWER_5VCTRL_HEADROOM_ADJ,(4 << BP_POWER_5VCTRL_HEADROOM_ADJ),HW_POWER_5VCTRL);
+	CLR_SET_PWR_REG_BITS(HW_POWER_5VCTRL,BM_POWER_5VCTRL_HEADROOM_ADJ,(4 << BP_POWER_5VCTRL_HEADROOM_ADJ));
 
+	/* disable shutdown on 5v/vddd/a/io BO */
+	PWRREG_DISABLE_VDDDAIO5V_BO_SHUTDOWN();
+
+	/* turn on bat-bo detecting circuit, don't shut down on batt-BO */
+	CLR_PWR_REG_BITS(HW_POWER_BATTMONITOR,
+		(BM_POWER_BATTMONITOR_PWDN_BATTBRNOUT | BM_POWER_BATTMONITOR_BRWNOUT_PWD));
+
+	/* set 5v-droop thresh at < 4.3V */
+	PWRREG_SET_VBUSDROOP_TRSH(VBUSDROOP_TRSH_4_3);
+
+	/* always detect attaching */
+	WR_PWR_REG(HW_POWER_CTRL_SET, BM_POWER_CTRL_POLARITY_VDD5V_GT_VDDIO | BM_POWER_CTRL_POLARITY_VBUSVALID);
+
+	/* disable all INT at first, will be set properly in state machine */
+	PWRREG_ENABLE_ALL_INT(false);
 
 	return 0;
 }
 
-/*
- * [luheng] use lradc physical channel 8,9 to measure die temp. unit:??
- * g_ddi_bc_Configuration.u8DieTempChannel specifies the logic channel we temporarily use.
- */
-uint16_t MeasureInternalDieTemperature(void)
-{
-	uint32_t  ch8Value, ch9Value, lradc_irq_mask, channel;
-
-	/* logic channel */
-	channel = g_ddi_bc_Configuration.u8DieTempChannel;
-	lradc_irq_mask = 1 << channel;
-
-	/* power up internal tep sensor block */
-	WR_LRADC_REG(BM_LRADC_CTRL2_TEMPSENSE_PWD, HW_LRADC_CTRL2_CLR);
-
-	/* mux to physical lradc channel-8, temp channel */
-	WR_LRADC_REG((0xF << (4 * channel)), HW_LRADC_CTRL4_CLR);
-	WR_LRADC_REG((8 << (4 * channel)), HW_LRADC_CTRL4_SET);
-
-	/* Clear the interrupt flag */
-	WR_LRADC_REG(lradc_irq_mask, HW_LRADC_CTRL1_CLR);
-	WR_LRADC_REG(BF_LRADC_CTRL0_SCHEDULE(1 << channel), HW_LRADC_CTRL0_SET);
-
-	/* Wait for conversion complete*/
-	while (!(RD_LRADC_REG(HW_LRADC_CTRL1) & lradc_irq_mask))
-		cpu_relax();
-
-	/* Clear the interrupt flag again */
-	WR_LRADC_REG(lradc_irq_mask, HW_LRADC_CTRL1_CLR);
-
-	/* read temperature value and clr lradc */
-	ch8Value = RD_LRADC_REG(HW_LRADC_CHn(channel)) & BM_LRADC_CHn_VALUE;
-
-
-	WR_LRADC_REG(BM_LRADC_CHn_VALUE, HW_LRADC_CHn_CLR(channel));
-
-	/* mux to physical lradc channel-9, temp channel */
-	WR_LRADC_REG((0xF << (4 * channel)), HW_LRADC_CTRL4_CLR);
-	WR_LRADC_REG((9 << (4 * channel)), HW_LRADC_CTRL4_SET);
-
-	/* Clear the interrupt flag */
-	WR_LRADC_REG(lradc_irq_mask, HW_LRADC_CTRL1_CLR);
-	WR_LRADC_REG(BF_LRADC_CTRL0_SCHEDULE(1 << channel), HW_LRADC_CTRL0_SET);
-	/* Wait for conversion complete */
-	while (!(RD_LRADC_REG(HW_LRADC_CTRL1) & lradc_irq_mask))
-		cpu_relax();
-
-	/* Clear the interrupt flag */
-	WR_LRADC_REG(lradc_irq_mask, HW_LRADC_CTRL1_CLR);
-	/* read temperature value */
-	ch9Value = RD_LRADC_REG(HW_LRADC_CHn(channel)) & BM_LRADC_CHn_VALUE;
-
-
-	WR_LRADC_REG(BM_LRADC_CHn_VALUE, HW_LRADC_CHn_CLR(channel));
-
-	/* power down temp sensor block */
-	WR_LRADC_REG(BM_LRADC_CTRL2_TEMPSENSE_PWD, HW_LRADC_CTRL2_SET);
-
-
-	return (uint16_t)((ch9Value - ch8Value) * GAIN_CORRECTION / 4000);
-}
-
-
-/*
- * Use the the lradc channel to get the battery temperature.
- * A thermistor is used for external temperature sensing
- * which attached to LRADC0. This function returns the thermister
- * resistance value in ohm. Please check the specifiction of the
- * thermister to convert the resistance value to temperature.
- *
- * g_ddi_bc_Configuration.u8BatteryTempChannel, logic lradc channel to measure batt temp
- */
-#define NUM_TEMP_READINGS_TO_AVG 3
-uint16_t MeasureInternalBatteryTemperature(void)
-{
-	uint32_t  value, lradc_irq_mask, channel, sum = 0;
-	uint16_t  out_value;
-	int i;
-
-	channel = g_ddi_bc_Configuration.u8BatteryTempChannel;
-	lradc_irq_mask = 1 << channel;
-
-	/* Enable the temperature sensor. */
-	WR_LRADC_REG(BM_LRADC_CTRL2_TEMPSENSE_PWD, HW_LRADC_CTRL2_CLR);
-
-	/* 100uA is output to physical lradc chan-0 */
-	WR_LRADC_REG(BF_LRADC_CTRL2_TEMP_ISRC0(BV_LRADC_CTRL2_TEMP_ISRC0__100), HW_LRADC_CTRL2_SET);
-	WR_LRADC_REG(BM_LRADC_CTRL2_TEMP_SENSOR_IENABLE0, HW_LRADC_CTRL2_SET);
-
-	/* Wait while the current ramps up.  */
-	msleep(1);
-
-	/* mux logic chan to physical lradc 0 for conversion on LRADC channel . */
-	WR_LRADC_REG((0xF << (4 * channel)), HW_LRADC_CTRL4_CLR);
-	WR_LRADC_REG((0 << (4 * channel)), HW_LRADC_CTRL4_SET);
-
-	for (i = 0; i < NUM_TEMP_READINGS_TO_AVG; i++) {
-		/* Clear the interrupt flag */
-		WR_LRADC_REG(lradc_irq_mask, HW_LRADC_CTRL1_CLR);
-		WR_LRADC_REG(BF_LRADC_CTRL0_SCHEDULE(1 << channel), HW_LRADC_CTRL0_SET);
-
-		/* Wait for conversion complete*/
-		while (!(RD_LRADC_REG(HW_LRADC_CTRL1) & lradc_irq_mask))
-			cpu_relax();
-
-		/* Clear the interrupt flag again */
-		WR_LRADC_REG(lradc_irq_mask, HW_LRADC_CTRL1_CLR);
-
-		/* read temperature value and clr lradc */
-		value = RD_LRADC_REG(HW_LRADC_CHn(channel)) & BM_LRADC_CHn_VALUE;
-
-		WR_LRADC_REG(BM_LRADC_CHn_VALUE, HW_LRADC_CHn_CLR(channel));
-
-		sum += value;
-  }
-
-	/* Turn off the current to the temperature sensor to save power */
-
-	WR_LRADC_REG(BF_LRADC_CTRL2_TEMP_ISRC0(BV_LRADC_CTRL2_TEMP_ISRC0__ZERO), HW_LRADC_CTRL2_SET);
-
-	WR_LRADC_REG(BM_LRADC_CTRL2_TEMP_SENSOR_IENABLE0, HW_LRADC_CTRL2_CLR);
-
-	/* power down temp sensor block */
-	WR_LRADC_REG(BM_LRADC_CTRL2_TEMPSENSE_PWD, HW_LRADC_CTRL2_SET);
-
-
-	/* Take the voltage average.  */
-	value = sum/NUM_TEMP_READINGS_TO_AVG;
-
-	/* convert the voltage to thermister resistance value in 10ohm.  */
-	/* ohm = (ADC value) * 1.85/(2^12) / current 100uA  */
-	value = value * 18500/4096;
-
-	out_value = value/10;
-
-	return out_value;
-}
-
-/* [luheng] always return MODE_LIION */
-ddi_power_BatteryMode_t ddi_power_GetBatteryMode(void)
-{
-	return DDI_POWER_BATT_MODE_LIION;
-}
-
-/* [luheng] always return enabled! */
-bool ddi_power_GetBatteryChargerEnabled(void)
-{
-	return 1;
-}
-
-/* [luheng] turn on/off batt-charger. To turn on, also turn on 5v->charger_&_4p2 route */
-void ddi_power_SetChargerPowered(bool bPowerOn)
-{
-	if (bPowerOn) {
-		WR_PWR_REG(BM_POWER_CHARGE_PWD_BATTCHRG, HW_POWER_CHARGE_CLR);
-		WR_PWR_REG(BM_POWER_5VCTRL_PWD_CHARGE_4P2, HW_POWER_5VCTRL_CLR);
-	} else {
-		WR_PWR_REG(BM_POWER_CHARGE_PWD_BATTCHRG, HW_POWER_CHARGE_SET);
-	}
-}
-
-/* [luheng] return if charger is working, true(working), false(idle) */
-int ddi_power_GetChargeStatus(void)
-{
-	return (RD_PWR_REG(HW_POWER_STS) & BM_POWER_STS_CHRGSTS) ? 1 : 0;
-}
-
-/* [luheng] read hw battery voltage, unit:mv */
-#define BATT_VOLTAGE_8_MV 8
-uint16_t ddi_power_GetBattery(void)
-{
-	uint32_t    u16BattVolt;
-
-	/* Get the raw result of battery measurement */
-	u16BattVolt = RD_PWR_REG(HW_POWER_BATTMONITOR);
-	u16BattVolt &= BM_POWER_BATTMONITOR_BATT_VAL;
-	u16BattVolt >>= BP_POWER_BATTMONITOR_BATT_VAL;
-	u16BattVolt *= BATT_VOLTAGE_8_MV /* Adjust for 8-mV LSB resolution and return */;
-
-	return u16BattVolt;
-}
-
 /* [luheng] set max hw charging current */
-uint16_t ddi_power_SetMaxBatteryChargeCurrent(uint16_t u16MaxCur)
+uint16_t mxspwr_set_charging_cur(uint16_t u16ma)
 {
-	uint32_t   u16OldSetting;
-	uint32_t   u16NewSetting;
+	uint32_t   u16old_bits;
+	uint32_t   u16new_bits;
 	uint32_t   u16ToggleMask;
 
-	u16OldSetting = (RD_PWR_REG(HW_POWER_CHARGE) & BM_POWER_CHARGE_BATTCHRG_I) >> BP_POWER_CHARGE_BATTCHRG_I;
-	u16NewSetting = ddi_power_convert_current_to_setting(u16MaxCur);
+	u16old_bits = (RD_PWR_REG(HW_POWER_CHARGE) & BM_POWER_CHARGE_BATTCHRG_I) >> BP_POWER_CHARGE_BATTCHRG_I;
+	u16new_bits = mxspwr_ma2bits(u16ma);
 #if 1
-	u16ToggleMask = u16OldSetting ^ u16NewSetting;
-	WR_PWR_REG(u16ToggleMask << BP_POWER_CHARGE_BATTCHRG_I, HW_POWER_CHARGE_TOG);
+	u16ToggleMask = u16old_bits ^ u16new_bits;
+	WR_PWR_REG(HW_POWER_CHARGE_TOG, u16ToggleMask << BP_POWER_CHARGE_BATTCHRG_I);
 #else
-	WR_PWR_REG(BM_POWER_CHARGE_BATTCHRG_I,HW_POWER_CHARGE_CLR);
-	WR_PWR_REG(u16NewSetting << BP_POWER_CHARGE_BATTCHRG_I,HW_POWER_CHARGE_SET);
+	WR_PWR_REG(HW_POWER_CHARGE_CLR,BM_POWER_CHARGE_BATTCHRG_I);
+	WR_PWR_REG(HW_POWER_CHARGE_SET,u16NewSetting << BP_POWER_CHARGE_BATTCHRG_I);
 #endif
 
-	return ddi_power_convert_setting_to_current(u16NewSetting);
+	return mxspwr_bits2ma(u16new_bits);
 }
 
 /* [luheng] read from reg current max charging current setting */
-uint16_t ddi_power_GetMaxBatteryChargeCurrent(void)
+uint16_t mxspwr_get_charging_cur(void)
 {
 	uint32_t u8Bits;
 	u8Bits = (RD_PWR_REG(HW_POWER_CHARGE) & BM_POWER_CHARGE_BATTCHRG_I) >> BP_POWER_CHARGE_BATTCHRG_I;
-	return ddi_power_convert_setting_to_current(u8Bits);
+	return mxspwr_bits2ma(u8Bits);
 }
 
 /* [luheng] set stop-charging lower thresh, unit:mA */
-uint16_t ddi_power_SetBatteryChargeCurrentThreshold(uint16_t u16Thresh)
+uint16_t mxspwr_set_charg_stop_thsh(uint16_t u16Thresh)
 {
-	uint32_t   u16OldSetting;
-	uint32_t   u16NewSetting;
+	uint32_t   u16old_bits;
+	uint32_t   u16new_bits;
 	uint32_t   u16ToggleMask;
 
 	if (u16Thresh > 180) /* only 4 bits, all add up to 180 */
 		u16Thresh = 180;
 
-	u16OldSetting = (RD_PWR_REG(HW_POWER_CHARGE) & BM_POWER_CHARGE_STOP_ILIMIT) >> BP_POWER_CHARGE_STOP_ILIMIT;
-	u16NewSetting = ddi_power_convert_current_to_setting(u16Thresh);
-	u16ToggleMask = u16OldSetting ^ u16NewSetting;
-	WR_PWR_REG(BF_POWER_CHARGE_STOP_ILIMIT(u16ToggleMask), HW_POWER_CHARGE_TOG);
+	u16old_bits = (RD_PWR_REG(HW_POWER_CHARGE) & BM_POWER_CHARGE_STOP_ILIMIT) >> BP_POWER_CHARGE_STOP_ILIMIT;
+	u16new_bits = mxspwr_ma2bits(u16Thresh);
+	u16ToggleMask = u16old_bits ^ u16new_bits;
+	WR_PWR_REG(HW_POWER_CHARGE_TOG, BF_POWER_CHARGE_STOP_ILIMIT(u16ToggleMask));
 
-	return ddi_power_convert_setting_to_current(u16NewSetting);
-}
-
-/* [luheng] read from reg the stop-charging lower thresh, unit:mA */
-uint16_t ddi_power_GetBatteryChargeCurrentThreshold(void)
-{
-	uint32_t u16Threshold;
-	u16Threshold = (RD_PWR_REG(HW_POWER_CHARGE) & BM_POWER_CHARGE_STOP_ILIMIT) >> BP_POWER_CHARGE_STOP_ILIMIT;
-	return ddi_power_convert_setting_to_current(u16Threshold);
+	return mxspwr_bits2ma(u16new_bits);
 }
 
 /* [luheng] convert a current value (mA) to mxs-recognizable current value (mA) */
-uint16_t ddi_power_ExpressibleCurrent(uint16_t u16Current)
+uint16_t mxspwr_expressible_cur(uint16_t u16ma)
 {
-	return ddi_power_convert_setting_to_current(ddi_power_convert_current_to_setting(u16Current));
+	return mxspwr_bits2ma(mxspwr_ma2bits(u16ma));
 }
 
-/* [luheng] Check if 5v is present from POWER_STS reg, true:presence, false:absence
- * detect either STS_VBUSVALID0 or VDD5V_GT_VDDIO according to global DetectionMethod
- */
-bool ddi_power_Get5vPresentFlag(void)
+/* [luheng] get hw 5v->charger_&_4p2 current limit, unit:mA */
+uint16_t mxspwr_get_chrgr_4p2_limit(void)
 {
-	switch (DetectionMethod) {
-		case DDI_POWER_5V_VBUSVALID:/* Check VBUSVALID for 5V present */
-			return ((RD_PWR_REG(HW_POWER_STS) & BM_POWER_STS_VBUSVALID0) != 0);
-		case DDI_POWER_5V_VDD5V_GT_VDDIO:/* Check VDD5V_GT_VDDIO for 5V present */
-			return ((RD_PWR_REG(HW_POWER_STS) & BM_POWER_STS_VDD5V_GT_VDDIO) != 0);
-		default:
-			break;
-	}
+	uint32_t bits;
 
-	return 0;
-}
-
-/* [luheng] return current celsus degree of die temperature. pLow: lower margin, pHigh: higher margin */
-#define TEMP_READING_ERROR_MARGIN 5
-#define KELVIN_TO_CELSIUS_CONST 273
-void ddi_power_GetDieTemp(int16_t *pLow, int16_t *pHigh)
-{
-	int16_t i16High, i16Low;
-	uint16_t u16Reading;
-
-	/* Get the reading in Kelvins */
-	u16Reading = MeasureInternalDieTemperature();
-
-	/* Adjust for error margin */
-	i16High = u16Reading + TEMP_READING_ERROR_MARGIN;
-	i16Low  = u16Reading - TEMP_READING_ERROR_MARGIN;
-
-	/* Convert to Celsius */
-	i16High -= KELVIN_TO_CELSIUS_CONST;
-	i16Low  -= KELVIN_TO_CELSIUS_CONST;
-
-	/* Return the results */
-	*pHigh = i16High;
-	*pLow  = i16Low;
-}
-
-/* [luheng] return current thermistor ohm value, unit: ohm */
-void ddi_power_GetBatteryTemp(uint16_t *pReading)
-{
-	*pReading = MeasureInternalBatteryTemperature();
-}
-
-/*
- * [luheng] check 5v state:
- *      new_5v_connection           new on
- *      existing_5v_disconnection   old on
- *      new_5v_disconnection        new off
- *      existing_5v_connection      old off
- */
-enum ddi_power_5v_status ddi_power_GetPmu5vStatus(void)
-{
-	uint32_t pwr_ctrl_val = RD_PWR_REG(HW_POWER_CTRL);
-	
-	if (DetectionMethod == DDI_POWER_5V_VDD5V_GT_VDDIO) {           /* we're here \|/ */
-		if (pwr_ctrl_val & BM_POWER_CTRL_POLARITY_VDD5V_GT_VDDIO) { /* expecting 5v on */
-			if (  (pwr_ctrl_val & BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ)
-				|| ddi_power_Get5vPresentFlag())
-				return new_5v_connection;                           /* off -> on */
-			else
-				return existing_5v_disconnection;                   /* still off */
-		} else {                                                    /* expecting 5v off */ 
-			if (   (pwr_ctrl_val & BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ)
-				|| !ddi_power_Get5vPresentFlag()
-				||	ddi_power_Get5vDroopFlag())
-				return new_5v_disconnection;                        /* on -> off */
-			else
-				return existing_5v_connection;                      /* still on */
-		}
-	} else {
-		if (pwr_ctrl_val & BM_POWER_CTRL_POLARITY_VBUSVALID) {      /* expecting on */
-			if ((pwr_ctrl_val & BM_POWER_CTRL_VBUSVALID_IRQ) ||
-				ddi_power_Get5vPresentFlag())
-				return new_5v_connection;
-			else
-				return existing_5v_disconnection;
-		} else {                                                    /* expecting off */
-			if ((pwr_ctrl_val & BM_POWER_CTRL_VBUSVALID_IRQ) ||
-				!ddi_power_Get5vPresentFlag() ||
-				ddi_power_Get5vDroopFlag())
-				return new_5v_disconnection;
-			else
-				return existing_5v_connection;
-		}
-	}
-}
-
-/* [luheng] start detecting 5v detache, will trigger an irq on detection */
-void ddi_power_enable_5v_disconnect_detection(void)
-{
-	WR_PWR_REG(BM_POWER_CTRL_POLARITY_VDD5V_GT_VDDIO | BM_POWER_CTRL_POLARITY_VBUSVALID, HW_POWER_CTRL_CLR);
-	WR_PWR_REG(BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ | BM_POWER_CTRL_VBUSVALID_IRQ, HW_POWER_CTRL_CLR);
-
-	if (DetectionMethod == DDI_POWER_5V_VDD5V_GT_VDDIO) {
-		WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO, HW_POWER_CTRL_SET);
-	} else {
-		WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VBUS_VALID, HW_POWER_CTRL_SET);
-	}
-}
-
-/* [luheng] starting detect 5v attach, will trigger an irq on attach */
-void ddi_power_enable_5v_connect_detection(void)
-{
-	WR_PWR_REG(BM_POWER_CTRL_POLARITY_VDD5V_GT_VDDIO | BM_POWER_CTRL_POLARITY_VBUSVALID, HW_POWER_CTRL_SET);
-	WR_PWR_REG(BM_POWER_CTRL_VDD5V_GT_VDDIO_IRQ | BM_POWER_CTRL_VBUSVALID_IRQ, HW_POWER_CTRL_CLR);
-
-	if (DetectionMethod == DDI_POWER_5V_VDD5V_GT_VDDIO) {
-		WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO, HW_POWER_CTRL_SET);
-	} else {
-		WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VBUS_VALID, HW_POWER_CTRL_SET);
-	}
-}
-
-/* [luheng] turn on/off BATT-BO INT */
-void ddi_power_EnableBatteryBoInterrupt(bool bEnable)
-{
-	if (bEnable) {
-		WR_PWR_REG(BM_POWER_CTRL_BATT_BO_IRQ, HW_POWER_CTRL_CLR);
-		WR_PWR_REG(BM_POWER_CTRL_ENIRQBATT_BO, HW_POWER_CTRL_SET);
-		// TODO: make sure the battery brownout comparator is enabled in HW_POWER_BATTMONITOR
-	} else {
-		WR_PWR_REG(BM_POWER_CTRL_ENIRQBATT_BO, HW_POWER_CTRL_CLR);
-	}
-}
-
-/* [luheng] turn on/off 4p2-BO INT */
-void ddi_power_EnableDcdc4p2BoInterrupt(bool bEnable)
-{
-	if (bEnable) {
-		WR_PWR_REG(BM_POWER_CTRL_DCDC4P2_BO_IRQ, HW_POWER_CTRL_CLR);
-		WR_PWR_REG(BM_POWER_CTRL_ENIRQ_DCDC4P2_BO, HW_POWER_CTRL_SET);
-	} else {
-		WR_PWR_REG(BM_POWER_CTRL_ENIRQ_DCDC4P2_BO, HW_POWER_CTRL_CLR);
-	}
-}
-
-/* [luheng] turn on/off 4p2-BO INT */
-void ddi_power_EnableVdd5vDroopInterrupt(bool bEnable)
-{
-	if (bEnable) {
-		WR_PWR_REG(BM_POWER_CTRL_VDD5V_DROOP_IRQ, HW_POWER_CTRL_CLR);
-		WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDD5V_DROOP, HW_POWER_CTRL_SET);
-	} else {
-		WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDD5V_DROOP, HW_POWER_CTRL_CLR);
-	}
-}
-
-/* [luheng] enable/disable 5v-BO shutdown trigger */
-void ddi_power_Enable5vDisconnectShutdown(bool bEnable)
-{
-	if (bEnable)
-		WR_PWR_REG(BM_POWER_5VCTRL_PWDN_5VBRNOUT, HW_POWER_5VCTRL_SET);
-	else
-		WR_PWR_REG(BM_POWER_5VCTRL_PWDN_5VBRNOUT, HW_POWER_5VCTRL_CLR);
-}
-
-/* [luheng] enable/disable 5v->batt auto xfer. when disabled, shutdown upon 5v-BO */
-void ddi_power_enable_5v_to_battery_xfer(bool bEnable)
-{
-	if (bEnable) {
-		ddi_power_Enable5vDisconnectShutdown(false);
-	} else {
-		/* order matters */
-		ddi_power_Enable5vDisconnectShutdown(true);
-		ddi_power_EnableBatteryBoInterrupt(false);
-	}
-}
-
-/* [luheng] check if all switches on route  "5v -> 4p2_linreg -> DCDC"  are turned on */
-bool ddi_power_check_4p2_bits(void)
-{
-	if (0 != (RD_PWR_REG(HW_POWER_5VCTRL) & BM_POWER_5VCTRL_PWD_CHARGE_4P2))
-		return false;
-
-	if (0 == (RD_PWR_REG(HW_POWER_DCDC4P2) & BM_POWER_DCDC4P2_ENABLE_DCDC))
-		return false;
-
-	if (0 != (RD_PWR_REG(HW_POWER_DCDC4P2) & BM_POWER_DCDC4P2_ENABLE_4P2))
-		return true;
-	else
-		return false;
+	bits = (RD_PWR_REG(HW_POWER_5VCTRL) | BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT) >> BP_POWER_5VCTRL_CHARGE_4P2_ILIMIT;
+	return mxspwr_bits2ma((uint16_t)bits);
 }
 
 /* [luheng] set 5v->charger_&_4p2 current limit, unit:mA */
-uint16_t ddi_power_set_4p2_ilimit(uint16_t ilimit)
+uint16_t mxspwr_set_chrgr_4p2_limit(uint16_t ilimit)
 {
 	uint32_t bits;
 
 	if (ilimit > 780)
 		ilimit = 780;
-	bits = BF_POWER_5VCTRL_CHARGE_4P2_ILIMIT(ddi_power_convert_current_to_setting(ilimit));
+	bits = BF_POWER_5VCTRL_CHARGE_4P2_ILIMIT(mxspwr_ma2bits(ilimit));
 	CLR_SET_PWR_REG_BITS(HW_POWER_5VCTRL, BM_POWER_5VCTRL_CHARGE_4P2_ILIMIT, bits);
 
 	return ilimit;
 }
 
 /* [luheng] power down the device */
-void ddi_power_shutdown(char *reason)
+void mxspwr_shutdown(char *reason)
 {
 	printk("power down: %s\n", reason);
 	mdelay(500);
-	WR_PWR_REG(0x3e770001, HW_POWER_RESET);
-}
-
-/* [luheng] turn on batt-BO INT, turn off 4p2-BO INT, this is called when 5v detached and use batt only. */
-void ddi_power_handle_dcdc4p2_bo(void)
-{
-	ddi_power_EnableBatteryBoInterrupt(true);
-	ddi_power_EnableDcdc4p2BoInterrupt(false);
-}
-
-/* [luheng]: enable/disable vddio-BO INT */
-void ddi_power_enable_vddio_interrupt(bool enable)
-{
-	if (enable) {
-		WR_PWR_REG(BM_POWER_CTRL_VDDIO_BO_IRQ, HW_POWER_CTRL_CLR);
-		WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDDIO_BO, HW_POWER_CTRL_SET);
-
-	} else {
-		WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDDIO_BO, HW_POWER_CTRL_CLR);
-	}
-
-}
-
-/* [luheng]
- * for each of vddd / vdda / vddio BO
- *		1. clear INT stats
- *		2. enable irqs
- *		3. disable PWDN-BO trgger
- */
-void ddi_power_InitOutputBrownouts(void)
-{
-	WR_PWR_REG(BM_POWER_CTRL_VDDD_BO_IRQ   | BM_POWER_CTRL_VDDA_BO_IRQ   | BM_POWER_CTRL_VDDIO_BO_IRQ,   HW_POWER_CTRL_CLR);
-	WR_PWR_REG(BM_POWER_CTRL_ENIRQ_VDDD_BO | BM_POWER_CTRL_ENIRQ_VDDA_BO | BM_POWER_CTRL_ENIRQ_VDDIO_BO, HW_POWER_CTRL_SET);
-
-	CLR_PWR_REG_BITS(HW_POWER_VDDDCTRL,  BM_POWER_VDDDCTRL_PWDN_BRNOUT);
-	CLR_PWR_REG_BITS(HW_POWER_VDDACTRL,  BM_POWER_VDDACTRL_PWDN_BRNOUT);
-	CLR_PWR_REG_BITS(HW_POWER_VDDIOCTRL, BM_POWER_VDDIOCTRL_PWDN_BRNOUT);
-}
-
-/* [luheng] used for debugging purposes only, disable all intterupts of pwr-reg */
-void ddi_power_disable_power_interrupts(void)
-{
-	WR_PWR_REG( BM_POWER_CTRL_ENIRQ_DCDC4P2_BO | BM_POWER_CTRL_ENIRQ_VDD5V_DROOP
-		      | BM_POWER_CTRL_ENIRQ_PSWITCH    | BM_POWER_CTRL_ENIRQ_DC_OK
-		      | BM_POWER_CTRL_ENIRQBATT_BO     | BM_POWER_CTRL_ENIRQ_VDDIO_BO
-		      | BM_POWER_CTRL_ENIRQ_VDDA_BO    | BM_POWER_CTRL_ENIRQ_VDDD_BO
-		      | BM_POWER_CTRL_ENIRQ_VBUS_VALID | BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO,
-		HW_POWER_CTRL_CLR);
-
-}
-
-/* [luheng] read from pwr-sts reg if vdd5v_droop happens */
-bool ddi_power_Get5vDroopFlag(void)
-{
-	return ((RD_PWR_REG(HW_POWER_STS) & BM_POWER_STS_VDD5V_DROOP) != 0);
+	WR_PWR_REG(HW_POWER_RESET, 0x3e770001);
 }
 
 
