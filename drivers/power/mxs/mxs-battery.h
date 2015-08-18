@@ -52,7 +52,8 @@ enum MXS_IRQ_EVENT {
 	EVNT_5V_OFF,
 };
 
-#define MXS_DELTA(prev,now) ((now) >= (prev)) ? ((now) - (prev)) : ((now) + (0xffffffff - (prev)))
+#define MXS_DELTA(prev,now) (((now) >= (prev)) ? ((now) - (prev)) : ((now) + (0xffffffff - (prev))))
+#define ABS_DIFF(a,b) (((a) >= (b)) ? ((a) - (b)) : ((b) - (a)))
 
 #define IRQ_BATT_BRNOUT		(mxs_pwr_irqs[INDEX_IRQ_BATT_BO])
 #define IRQ_VDDD_BRNOUT		(mxs_pwr_irqs[INDEX_IRQ_VDDD_BO])
@@ -69,12 +70,23 @@ enum MXS_IRQ_EVENT {
 #define BATVOL_UNIT_8MV 8
 
 #define BATTERY_VOLTAGE_CH 7
+#define BATTERY_DIETEMP_CH 0
 
 #define LRADC_DELAY_TRIGGER_BATTERY	3
 
-#define DUBIOUS_VOL_DIFF 150
+/* when consecutive batt vol diff > this, batt detaching/attaching might happened */
+#define DUBIOUS_VOL_DIFF 180
 
-#define MAX_CHARGING_CUR_IN_CHARGING_STAT 500
+/* bat-vol difference between charger on and off, when diff > 'this', no batt exists */
+#define NO_BAT_VOL_DIFF 400
+
+/* bat detecing spent time, milli sec */
+#define MS_BAT_DETECT_COST 1000
+
+#define CONDITION_VOL 3000
+
+#define NORMAL_CHARGING_LIMIT 400
+#define CONDITION_CHARGING_LIMIT 160
 #define CHRG_CUR_RAMP_SLOPE 150
 
 /* interval for detecting batt
@@ -84,6 +96,11 @@ enum MXS_IRQ_EVENT {
 #define BAT_DETECT_INTV_CHARGING   90000
 #define BAT_DETECT_INTV_STAGINGOFF 300000
 #define BAT_DETECT_INTV_NOBAT      20000
+
+/* timeout in staging-off, when expires, enter full state, 30 min (30 * 60 * 1000) */
+#define TO_STAGINGOFF 1800000
+/* timeout in charging, when expires, lower charging cur if bat < 4.1 else enter full, 4 hour (4*60*60*1000) */
+#define TO_CHARGING   14400000
 
 #define WR_PWR_REG(reg,val)   __raw_writel((val), mxs_pwr_base +   (reg))
 #define WR_LRADC_REG(reg,val) __raw_writel((val), mxs_lradc_base + (reg))
@@ -369,8 +386,8 @@ struct mxs_info {
 };
 
 
-unsigned int elapsed_ms(unsigned int oldjiffie);
 void fetch_irq_event(struct mxs_info *info);
+void save_irq_event(enum MXS_IRQ_EVENT evt);
 bool has_irq_event(void);
 
 void init_batt_sm(struct mxs_info *info);

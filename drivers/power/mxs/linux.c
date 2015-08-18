@@ -75,14 +75,7 @@ void __iomem *mxs_rtc_base;
 void __iomem *mxs_lradc_base;
 
 
-
-
-unsigned int elapsed_ms(unsigned int oldjiffie)
-{
-	return MXS_DELTA(jiffies_to_msecs(oldjiffie),jiffies_to_msecs(jiffies));
-}
-
-static void save_irq_event(enum MXS_IRQ_EVENT evt)
+void save_irq_event(enum MXS_IRQ_EVENT evt)
 {
 	if ((EVNT_NONE) == event_log[wr_idx]) {
 		event_log[wr_idx] = evt;
@@ -99,6 +92,7 @@ void fetch_irq_event(struct mxs_info *info)
 	int event_num = 0;
 	bool missed = false;
 	uint32_t timeout_ms;
+	uint32_t now;
 
 
 	while (EVNT_NONE != event_log[rd_idx]) {
@@ -116,7 +110,7 @@ void fetch_irq_event(struct mxs_info *info)
 				event_num++;
 				break;
 			default:
-				BATT_LOG("[BAT]: Error: unknown event %d\n", evt);
+				BATT_LOG("[BAT] Error: unknown event %d\n", evt);
 				break;
 		}
 	}
@@ -153,8 +147,9 @@ void fetch_irq_event(struct mxs_info *info)
 				break;
 		}
 
+		now = jiffies_to_msecs(jiffies);
 		if (    timeout_ms                                 /* expecting state shift */
-			 && (elapsed_ms(info->stamp_5v) >= timeout_ms) /* and expired */
+			 && (MXS_DELTA(info->stamp_5v, now) >= timeout_ms) /* and expired */
 		   )
 		{
 			info->state_5v++;
@@ -164,8 +159,8 @@ void fetch_irq_event(struct mxs_info *info)
 
 	if (event_num) {
 		/* something did happend during this loop, mark the new stamp */
-		info->stamp_5v = jiffies;
-		BATT_LOG("[BAT]: %s %d%s\n", stat_5v_names[info->state_5v], event_num, missed?"(missed)":"");
+		info->stamp_5v = jiffies_to_msecs(jiffies);
+		BATT_LOG("[BAT] %s %d%s\n", stat_5v_names[info->state_5v], event_num, missed?"(missed)":"");
 	}
 }
 
@@ -308,9 +303,11 @@ static irqreturn_t mxs_irq_vdd5v_droop(int irq, void *cookie)
 		mxspwr_shutdown("5v \\|/ wo batt");
 
 	/* disable 5v-off INT, enable 5v-on INT */
+	save_irq_event(EVNT_5V_OFF);
 	PWRREG_ENABLE_5VOFF_INT(false);
 	PWRREG_ENABLE_5VON_INT(true);
-	save_irq_event(EVNT_5V_OFF);
+	PWRREG_TURN_CHRGER(false);
+	mxspwr_set_charging_cur(0);
 
 	/* due to 5v connect vddio bo chip bug, we need to disable vddio interrupts until 5v is stable
 	 * either on or off.  We want to allow some debounce time before enabling connect detection. */
