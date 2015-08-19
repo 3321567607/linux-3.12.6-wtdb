@@ -85,9 +85,19 @@ enum MXS_IRQ_EVENT {
 
 #define CONDITION_VOL 3000
 
-#define NORMAL_CHARGING_LIMIT 400
-#define CONDITION_CHARGING_LIMIT 160
+
+#define CHRG_CUR_TMP_GT_70 0
+#define CHRG_CUR_TMP_GT_65 120
+#define CHRG_CUR_TMP_GT_60 200
+#define CHRG_CUR_TMP_GT_55 300
+#define CHRG_CUR_TMP_GT_50 400
+#define CHRG_CUR_TMP_LT_50 500
+
+#define CHRG_CUR_CONDITION 160
+
 #define CHRG_CUR_RAMP_SLOPE 150
+
+#define CHRG_CUR_ADJUST_INTV 50
 
 /* interval for detecting batt
  *     1.5 min in charging state

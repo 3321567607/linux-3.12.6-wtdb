@@ -160,7 +160,7 @@ void fetch_irq_event(struct mxs_info *info)
 	if (event_num) {
 		/* something did happend during this loop, mark the new stamp */
 		info->stamp_5v = jiffies_to_msecs(jiffies);
-		BATT_LOG("[BAT] %s %d%s\n", stat_5v_names[info->state_5v], event_num, missed?"(missed)":"");
+		//BATT_LOG("[BAT] %s %d%s\n", stat_5v_names[info->state_5v], event_num, missed?"(missed)":"");
 	}
 }
 

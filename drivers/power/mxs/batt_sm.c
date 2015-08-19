@@ -125,8 +125,13 @@ static uint16_t measure_die_tmp(void)
 }
 static void update_charging_limit(struct mxs_info *info)
 {
-	// TODO: when temp alarm occurs, decrease charging cur by 100 mA and measure temp ?? seconds later...
-	info->die_tmp = measure_die_tmp();
+	static int check_count;
+	uint16_t limit;
+	uint16_t batvol;
+	bool in_condition;
+
+	/* average temperature during past 1 sec */
+	info->die_tmp = ((info->die_tmp * 9) + measure_die_tmp()) / 10;
 	if (info->die_tmp_alarm) {
 		if (info->die_tmp < info->die_tmp_low)
 			info->die_tmp_alarm = false;
@@ -135,14 +140,42 @@ static void update_charging_limit(struct mxs_info *info)
 			info->die_tmp_alarm = true;
 	}
 
-	if (info->die_tmp_alarm)
-		info->chrg_trg = 0;
-	else if (PWRREG_GET_BATVOL() < CONDITION_VOL)
-		info->chrg_trg = CONDITION_CHARGING_LIMIT;
-	else if (info->charging_ms > TO_CHARGING)
-		info->chrg_trg = CONDITION_CHARGING_LIMIT;
-	else
-		info->chrg_trg = NORMAL_CHARGING_LIMIT;
+	/* check per 5 sec */
+	check_count++;
+	if (check_count >= CHRG_CUR_ADJUST_INTV) {
+		check_count = 0;
+
+		if (info->die_tmp > 70)
+			limit = CHRG_CUR_TMP_GT_70;
+		else if (info->die_tmp > 65)
+			limit = CHRG_CUR_TMP_GT_65;
+		else if (info->die_tmp > 60)
+			limit = CHRG_CUR_TMP_GT_60;
+		else if (info->die_tmp > 55)
+			limit = CHRG_CUR_TMP_GT_55;
+		else if (info->die_tmp > 50)
+			limit = CHRG_CUR_TMP_GT_50;
+		else
+			limit = CHRG_CUR_TMP_LT_50;
+
+		batvol = PWRREG_GET_BATVOL();
+		in_condition = (info->charging_ms > TO_CHARGING) || (batvol < CONDITION_VOL);
+		
+		if (    in_condition
+		     && (limit > CHRG_CUR_CONDITION)
+		   )
+		{
+			limit = CHRG_CUR_CONDITION;
+		}
+
+		if (limit != info->chrg_trg) {
+			info->chrg_trg = limit;
+			if (BAT_STAT_CHARGING == info->bat_state) {
+				BATT_LOG("[BAT] set charge=%d(mA), tmp:%d bat:%d(mV) charged:%d(min)\n",
+					limit, info->die_tmp, batvol, info->charging_ms / 60000);
+			}
+		}
+	}
 }
 
 void batt_sm_routine(struct mxs_info *info)
@@ -212,10 +245,10 @@ static void substate_detecting_bat(struct mxs_info *info)
 			mxspwr_set_charging_cur(0);
 		}
 		info->stamp_batvol = info->cur_routine_stamp;
-		BATT_LOG("[BAT] %s %s %d/%d takes %d ms\n",
+		/*BATT_LOG("[BAT] %s %s %d/%d takes %d ms\n",
 			state_name[info->bat_state],
 			info->bat_vol ? "batt detected" : "No batt",
-			initvol, nowvol, age);
+			initvol, nowvol, age);*/
 	}
 }
 
@@ -256,7 +289,7 @@ static bool substate_ramping(struct mxs_info *info)
 		if (thsh < 30)
 			thsh = 30;
 		mxspwr_set_charg_stop_thsh(thsh);
-		BATT_LOG("[BAT] %s ramping to %d mV takes %d ms\n", state_name[info->bat_state], tmp_curlimit, SUBSTATE_AGE);
+		//BATT_LOG("[BAT] %s ramping to %d mV takes %d ms\n", state_name[info->bat_state], tmp_curlimit, SUBSTATE_AGE);
 	}
 	
 	return done;
@@ -285,7 +318,7 @@ static void state_wait5v(struct mxs_info *info)
 					WR_PWR_REG(HW_POWER_5VCTRL_SET, BM_POWER_5VCTRL_PWD_CHARGE_4P2);
 					PWRREG_SET_VBSVALID_THRSH(VBUSVALID_THRESH_4_40V);
 				}
-				BATT_LOG("[BAT] %s 5v really disappears...\n", state_name[info->bat_state]);
+				//BATT_LOG("[BAT] %s 5v really disappears...\n", state_name[info->bat_state]);
 			}
 			break;
 
@@ -330,8 +363,8 @@ static void state_wait5v(struct mxs_info *info)
 						enable_irq(IRQ_VDD5V_DROOP);
 						enable_irq(IRQ_VDD5V);
 
-						BATT_LOG("[BAT] %s ramping 4p2 takes %d ms\n", state_name[info->bat_state],
-							MXS_DELTA((info->cur_routine_stamp)), jiffies_to_msecs(jiffies));
+						/*BATT_LOG("[BAT] %s ramping 4p2 takes %d ms\n", state_name[info->bat_state],
+							MXS_DELTA((info->cur_routine_stamp), jiffies_to_msecs(jiffies)));*/
 						enter_state(info, BAT_STAT_WAIT_BAT, stat_5v_names[info->state_5v]);
 					} else {
 						enable_irq(IRQ_VDD5V_DROOP);
