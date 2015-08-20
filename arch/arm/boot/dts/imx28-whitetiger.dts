@@ -194,6 +194,11 @@
 				pinctrl-0 = <&i2c0_pins_a>;
 				status = "okay";
 
+				at97sc3205t: tpm@29 {
+					compatible = "atmel,at97sc3204t";
+					reg = <0x29>;
+				};
+
 				hym8653_0: rtc@51 {
 					compatible = "haoyu,hym8653";
 					clkout = <1>;
