@@ -4,6 +4,16 @@
 
 menu "Misc devices"
 
+config L70_GPS
+	tristate "Quectel L70 GPS"
+	help
+	 Support L70 GPS.
+	
+config UG95
+	tristate "Quectel UG95/M95 UMTS/HSPA modules series"
+	help
+	 Support UG95/M95 2G/3G modules.
+	
 config SENSORS_LIS3LV02D
 	tristate
 	depends on INPUT

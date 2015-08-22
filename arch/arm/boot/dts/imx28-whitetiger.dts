@@ -369,6 +369,31 @@
 			gpio = <&gpio4 11 0>;
 			enable-active-high;
 		};
+
+		reg_rdioboard_batgsm: radioboard_bat {
+			compatible = "regulator-fixed";
+			regulator-name = "radioboard_bat";
+			regulator-min-microvolt = <4000000>;
+			regulator-max-microvolt = <4000000>;
+			gpio = <&gpio3 28 0>;
+			enable-active-high;
+			regulator-boot-on;
+			regulator-always-on;
+		};
+	};
+
+	modems {
+		compatible = "quectel,gsm-ug95-m95";
+		gsm_pwrkey_gpio     = <&gpio3 27 0>;   /* gpio_3_27,     active-high */
+		gsm_sim2_gpio       = <&tca6416 10 0>; /* tca6416 io-10, active-high (low:sim1 high:sim2) */
+		gsm_pwrdown_gpio    = <&tca6416 11 0>; /* tca6416 io-11, active-high */
+		gsm_reset_gpio      = <&tca6416 12 0>; /* tca6416 io-12, active-high */
+	};
+
+	gps {
+		compatible = "quectel,gps-l70";
+		gps_standby_gpio = <&tca6416 8 1>; /* tca6416 io-8, active-low */
+		gps_reset_gpio   = <&tca6416 7 1>; /* tca6416 io-7, active-low */
 	};
 
 };

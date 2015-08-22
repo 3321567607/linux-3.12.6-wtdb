@@ -956,6 +956,8 @@ CONFIG_BLK_DEV=y
 #
 # Misc devices
 #
+CONFIG_L70_GPS=y
+CONFIG_UG95=y
 # CONFIG_SENSORS_LIS3LV02D is not set
 # CONFIG_AD525X_DPOT is not set
 # CONFIG_ATMEL_PWM is not set
