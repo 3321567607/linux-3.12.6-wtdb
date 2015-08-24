@@ -35,6 +35,8 @@
 
 #define to_mxs_info(x) container_of((x), struct mxs_info, bat)
 
+uint32_t batdbg = 0;
+module_param_named(batdbg, batdbg, int, S_IRUGO | S_IWUSR | S_IWGRP);
 
 //#define  POWER_FIQ
 

@@ -9,12 +9,14 @@
 #include "regs-power.h"
 
 
-#define DBG_BATT 1
-#if DBG_BATT
-#define BATT_LOG printk
-#else
-#define BATT_LOG(x,...) do {} while(0)
-#endif
+//#define DBG_BATT 1
+//#if DBG_BATT
+//#define BATT_LOG printk
+//#else
+//#define BATT_LOG(x,...) do {} while(0)
+//#endif
+extern uint32_t batdbg;
+#define BATT_LOG(fmt, arg...)	do { if (batdbg) printk(KERN_INFO fmt , ## arg); } while (0)
 
 
 /* DIG_CTL REGS DEFINITION */
