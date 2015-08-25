@@ -139,7 +139,9 @@ static ssize_t sim_write(struct class *cls, struct class_attribute *attr, const 
 		enable_sim2 = (new_val == 2);
 		ug95_enable_gpio(&(g_devinfo->gpio_sim2), enable_sim2);
 		if (g_devinfo->is_power_on) {
-			ug95_pulse_gpio(&(g_devinfo->gpio_reset), 100);
+			ug95_pulse_gpio(&(g_devinfo->gpio_pwrdown), 100);
+			msleep(200);
+			ug95_pulse_gpio(&(g_devinfo->gpio_pwrkey), 1200);
 		}
 	}
 
@@ -156,6 +158,7 @@ static ssize_t pwron_write(struct class *cls, struct class_attribute *attr, cons
 	int new_val = simple_strtoul(_buf, NULL, 16);
 	bool changed = false;
 	struct ug95_gpio *pgpio;
+	int pulsewidth;
 
 	if (new_val != g_devinfo->is_power_on) {
 		if ((0 == new_val) || (1 == new_val)) {
@@ -167,9 +170,11 @@ static ssize_t pwron_write(struct class *cls, struct class_attribute *attr, cons
 
 	if (changed) {
 		pgpio = (0 == new_val) ? (&(g_devinfo->gpio_pwrdown)) : (&(g_devinfo->gpio_pwrkey));
-		ug95_pulse_gpio(pgpio, 100);
+		pulsewidth = (0 == new_val) ? 100 : 1200;
+		ug95_pulse_gpio(pgpio, pulsewidth);
 		g_devinfo->is_power_on = new_val;
-		printk("%s, turn %s ug95!\n", __FUNCTION__, (0 == new_val) ? "off" : "on");
+		printk("%s, turn %s ug95 via %d %d ms!\n",
+			__FUNCTION__, (0 == new_val) ? "off" : "on", pgpio->gpio, pulsewidth);
 	}
 
 	return _count; 
