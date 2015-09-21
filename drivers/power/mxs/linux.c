@@ -162,7 +162,7 @@ void fetch_irq_event(struct mxs_info *info)
 	if (event_num) {
 		/* something did happend during this loop, mark the new stamp */
 		info->stamp_5v = jiffies_to_msecs(jiffies);
-		//BATT_LOG("[BAT] %s %d%s\n", stat_5v_names[info->state_5v], event_num, missed?"(missed)":"");
+		BATT_LOG("[BAT] %s %d%s\n", stat_5v_names[info->state_5v], event_num, missed?"(missed)":"");
 	}
 }
 
@@ -314,8 +314,6 @@ static irqreturn_t mxs_irq_vdd5v_droop(int irq, void *cookie)
 	/* due to 5v connect vddio bo chip bug, we need to disable vddio interrupts until 5v is stable
 	 * either on or off.  We want to allow some debounce time before enabling connect detection. */
 	PWRREG_ENABLE_VDDDAIO_INT(false);
-
-	PWRREG_ENABLE_BATBO_INT(true); /* enable BATT-BO INT */
 
 	/* 4p2 as DCDC src criteria: (4p2 >= 1.05 * batt); set 4p2 target vol as batt vol */
 	SET_PWR_REG_BITS(HW_POWER_DCDC4P2, BF_POWER_DCDC4P2_CMPTRIP(0x1F) | BM_POWER_DCDC4P2_TRG);

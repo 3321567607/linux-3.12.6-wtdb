@@ -382,7 +382,7 @@
 		};
 	};
 
-	spi2 {
+	/*spi2 {
 		compatible = "spi-gpio";
 		status = "okay";
 		gpio-sck = <&gpio2 7 0>;
@@ -398,7 +398,7 @@
 			voltage-ranges = <3200 3400>;
 			spi-max-frequency = <25000000>;
 		};
-	};
+	};*/
 
 	modems {
 		compatible = "quectel,gsm-ug95-m95";

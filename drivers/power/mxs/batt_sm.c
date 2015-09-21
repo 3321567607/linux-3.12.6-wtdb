@@ -330,13 +330,10 @@ static void state_wait5v(struct mxs_info *info)
 					if (!has_irq_event()) {
 						PWRREG_ENABLE_5VON_INT(true);
 						PWRREG_ENABLE_VDDDAIO_INT(true);
-						
-						enable_irq(IRQ_VDD5V_DROOP);
-						enable_irq(IRQ_VDD5V);
-					} else {
-						enable_irq(IRQ_VDD5V_DROOP);
-						enable_irq(IRQ_VDD5V);
+						PWRREG_ENABLE_BATBO_INT(true); /* enable BATT-BO INT */
 					}
+					enable_irq(IRQ_VDD5V_DROOP);
+					enable_irq(IRQ_VDD5V);
 				}
 			}
 			break;
