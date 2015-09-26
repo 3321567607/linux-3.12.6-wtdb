@@ -20,6 +20,7 @@
 #include <linux/i2c.h>
 #include <linux/platform_data/pca953x.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 #ifdef CONFIG_OF_GPIO
 #include <linux/of_platform.h>
 #endif
@@ -659,6 +660,12 @@ static int device_pca953x_init(struct pca953x_chip *chip, u32 invert)
 {
 	int ret;
 	u8 val[MAX_BANK];
+
+	memset(val, 0, MAX_BANK);
+	pca953x_write_regs(chip, PCA953X_INVERT, val);
+	pca953x_write_regs(chip, PCA953X_DIRECTION, val);
+	pca953x_write_regs(chip, PCA953X_OUTPUT, val);
+	mdelay(10);
 
 	ret = pca953x_read_regs(chip, PCA953X_OUTPUT, chip->reg_output);
 	if (ret)

@@ -261,6 +261,7 @@
 			auart4: serial@80072000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&auart4_pins_wt>;
+				fsl,uart-has-rtscts;
 				status = "okay";
 			};
 
@@ -380,6 +381,17 @@
 			regulator-boot-on;
 			regulator-always-on;
 		};
+
+		reg_wifi_pwr: wifi_pwr {
+			compatible = "regulator-fixed";
+			regulator-name = "wifi_pwr";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			gpio = <&tca6416 5 1>;
+			enable-active-low;
+			regulator-boot-on;
+			regulator-always-on;
+		};
 	};
 
 	/*spi2 {
@@ -399,6 +411,11 @@
 			spi-max-frequency = <25000000>;
 		};
 	};*/
+
+	ap6212_bluetooth {
+		compatible = "ampak,ap6212-blue";
+		blue_pwron_gpio = <&tca6416 4 0>; /* tca6416 io-04, active-high */
+	};
 
 	modems {
 		compatible = "quectel,gsm-ug95-m95";

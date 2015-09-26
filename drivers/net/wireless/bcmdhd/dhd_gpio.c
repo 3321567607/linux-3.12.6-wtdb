@@ -17,7 +17,6 @@
 #ifdef CONFIG_SOC_IMX28
 #include <linux/gpio.h>
 #define WL_REG_ON   243
-#define WIFI_POWR	245
 #endif
 
 
@@ -62,21 +61,16 @@ int bcm_wlan_set_power(bool on)
 
 	if (on) {
 #ifdef CONFIG_SOC_IMX28
-		if (!gpio_request(WIFI_POWR, "bcm dongle")) {
-			if (!gpio_request(WL_REG_ON, "bcm dongle")) {
-				printk("======== PULL WL_REG_ON HIGH! ========\n");
-				gpio_direction_output(WIFI_POWR, 0);	/* suplly vddio */
-				mdelay(100);
+			if (0 == (err = gpio_request(WL_REG_ON, "bcm dongle"))) {
+				gpio_direction_output(WL_REG_ON, 0);
+				mdelay(1);
 				gpio_direction_output(WL_REG_ON, 1);	/* inform wifi-IC to power on */
-				//msleep(3000);
 				gpio_free(WL_REG_ON);
+				printk("======== PULL WL_REG_ON HIGH! ========\n");
+				mdelay(300);
 			} else {
-				printk("======== Cannot request WIFI_POWR ========\n");
+				printk("======== Cannot request WL_REG_ON ========\n");
 			}
-			gpio_free(WIFI_POWR);
-		} else {
-			printk("======== Cannot request WL_REG_ON ========\n");
-		}
 
 #elif defined(CONFIG_MACH_ODROID_4210)
 		err = gpio_set_value(EXYNOS4_GPK1(0), 1);
@@ -86,14 +80,9 @@ int bcm_wlan_set_power(bool on)
 	} else {
 		printk("======== PULL WL_REG_ON LOW! ========\n");
 #ifdef CONFIG_SOC_IMX28
-		if (!gpio_request(WL_REG_ON, "bcm dongle")) {
+		if (0 == (err = gpio_request(WL_REG_ON, "bcm dongle"))) {
 			gpio_set_value_cansleep(WL_REG_ON, 0);	/* inform wifi-IC to power off */
 			gpio_free(WL_REG_ON);
-		}
-
-		if (!gpio_request(WIFI_POWR, "bcm dongle")) {
-			gpio_set_value_cansleep(WIFI_POWR, 1);	/* shut down vddio */
-			gpio_free(WIFI_POWR);
 		}
 #elif defined(CONFIG_MACH_ODROID_4210)
 		err = gpio_set_value(EXYNOS4_GPK1(0), 0);

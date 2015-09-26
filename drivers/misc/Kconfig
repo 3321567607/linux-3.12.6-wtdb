@@ -14,6 +14,11 @@ config UG95
 	help
 	 Support UG95/M95 2G/3G modules.
 	
+config AP6212_BLUE_SWITCH
+	tristate "Switch on/off Ampak AP6212 bluetooth module"
+	help
+	 Switch on/off Ampak AP6212 bluetooth module.
+	
 config SENSORS_LIS3LV02D
 	tristate
 	depends on INPUT
