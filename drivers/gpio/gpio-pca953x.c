@@ -20,7 +20,6 @@
 #include <linux/i2c.h>
 #include <linux/platform_data/pca953x.h>
 #include <linux/slab.h>
-#include <linux/delay.h>
 #ifdef CONFIG_OF_GPIO
 #include <linux/of_platform.h>
 #endif
@@ -661,12 +660,6 @@ static int device_pca953x_init(struct pca953x_chip *chip, u32 invert)
 	int ret;
 	u8 val[MAX_BANK];
 
-	memset(val, 0, MAX_BANK);
-	pca953x_write_regs(chip, PCA953X_INVERT, val);
-	pca953x_write_regs(chip, PCA953X_DIRECTION, val);
-	pca953x_write_regs(chip, PCA953X_OUTPUT, val);
-	mdelay(10);
-
 	ret = pca953x_read_regs(chip, PCA953X_OUTPUT, chip->reg_output);
 	if (ret)
 		goto out;
@@ -734,6 +727,8 @@ static int pca953x_probe(struct i2c_client *client,
 	int irq_base = 0;
 	int ret;
 	u32 invert = 0;
+	int gpio;
+	int i;
 
 	chip = devm_kzalloc(&client->dev,
 			sizeof(struct pca953x_chip), GFP_KERNEL);
@@ -789,6 +784,17 @@ static int pca953x_probe(struct i2c_client *client,
 	}
 
 	i2c_set_clientdata(client, chip);
+
+	for (i = 0; i < (chip->gpio_chip).ngpio; i++) {
+		gpio = (chip->gpio_chip).base + i;
+		if (!gpio_request(gpio, "pca953x")) {
+			if (gpio_direction_output(gpio, 0))
+				printk("set gpio %d failed!\n", gpio);
+			gpio_free((chip->gpio_chip).base + i);
+		}
+	}
+	printk("pca953x: %s\n", id->name);
+
 	return 0;
 }
 

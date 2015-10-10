@@ -94,7 +94,9 @@ static void blue_pwron(bool on)
 		if (on) {
 			blue_enable_gpio(&(g_devinfo->gpio_pwrkey), false);
 			mdelay(1);
-		}
+			printk("ap6216-blue power on\n");
+		} else
+			printk("ap6216-blue power off\n");
 		blue_enable_gpio(&(g_devinfo->gpio_pwrkey), on);
 		g_devinfo->is_power_on = on;
 	}
@@ -178,7 +180,7 @@ static int blue_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, devinfo);
 	g_devinfo = devinfo;
-	blue_pwron(true);
+	//blue_pwron(true);
 
 end:
 	if (ret) {
@@ -228,5 +230,6 @@ static void __exit blue_exit(void)
 	platform_driver_unregister(&blue_driver);
 }
 
+//late_initcall(blue_init);
 module_init(blue_init);
 module_exit(blue_exit);
