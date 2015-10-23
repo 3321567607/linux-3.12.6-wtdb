@@ -1395,8 +1395,8 @@ u32 mmc_select_voltage(struct mmc_host *host, u32 ocr)
 		mmc_set_ios(host);
 		mmc_host_clk_release(host);
 	} else {
-		pr_warning("%s: host doesn't support card's voltages\n",
-				mmc_hostname(host));
+		/*pr_warning("%s: host doesn't support card's voltages\n",
+				mmc_hostname(host));*/
 		ocr = 0;
 	}
 

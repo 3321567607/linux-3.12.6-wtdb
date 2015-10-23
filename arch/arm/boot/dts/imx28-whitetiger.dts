@@ -394,7 +394,7 @@
 		};
 	};
 
-	/*spi2 {
+	spi2 {
 		compatible = "spi-gpio";
 		status = "okay";
 		gpio-sck = <&gpio2 7 0>;
@@ -410,26 +410,26 @@
 			voltage-ranges = <3200 3400>;
 			spi-max-frequency = <25000000>;
 		};
-	};*/
+	};
 
 	ap6212_bluetooth {
 		compatible = "ampak,ap6212-blue";
 		blue_pwron_gpio = <&tca6416 4 0>; /* tca6416 io-04, active-high */
 	};
 
-	modems {
+	/* modems {
 		compatible = "quectel,gsm-ug95-m95";
-		gsm_pwrkey_gpio     = <&gpio3 27 0>;   /* gpio_3_27,     active-high */
-		gsm_sim2_gpio       = <&tca6416 10 0>; /* tca6416 io-10, active-high (low:sim1 high:sim2) */
-		gsm_pwrdown_gpio    = <&tca6416 11 0>; /* tca6416 io-11, active-high */
-		gsm_reset_gpio      = <&tca6416 12 0>; /* tca6416 io-12, active-high */
-	};
+		gsm_pwrkey_gpio     = <&gpio3 27 0>;*/   /* gpio_3_27,     active-high */
+		/*gsm_sim2_gpio       = <&tca6416 10 0>;*/ /* tca6416 io-10, active-high (low:sim1 high:sim2) */
+		/*gsm_pwrdown_gpio    = <&tca6416 11 0>;*/ /* tca6416 io-11, active-high */
+		/*gsm_reset_gpio      = <&tca6416 12 0>;*/ /* tca6416 io-12, active-high */
+	/*};*/
 
-	gps {
+	/*gps {
 		compatible = "quectel,gps-l70";
-		gps_standby_gpio = <&tca6416 8 1>; /* tca6416 io-8, active-low */
-		gps_reset_gpio   = <&tca6416 7 1>; /* tca6416 io-7, active-low */
-	};
+		gps_standby_gpio = <&tca6416 8 1>;*/ /* tca6416 io-8, active-low */
+		/*gps_reset_gpio   = <&tca6416 7 1>;*/ /* tca6416 io-7, active-low */
+	/*};*/
 
 };
 
