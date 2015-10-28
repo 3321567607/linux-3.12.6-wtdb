@@ -199,11 +199,11 @@
 					reg = <0x29>;
 				};
 
-				hym8653_0: rtc@51 {
+				/*hym8653_0: rtc@51 {
 					compatible = "haoyu,hym8653";
 					clkout = <1>;
 					reg = <0x51>;
-				};
+				};*/
 
 				tca6416: gpio@20 {
 					compatible = "ti,tca6416";
