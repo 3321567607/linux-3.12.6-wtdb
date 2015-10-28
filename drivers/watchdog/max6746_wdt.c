@@ -68,13 +68,21 @@ static int wdt_ping(struct watchdog_device *wdd)
 
 static int wdt_start(struct watchdog_device *wdd)
 {
+	struct max6746_wdt_info *pinfo = watchdog_get_drvdata(wdd);
+	struct device *pdev = &(pinfo->p_platformdev->dev);
+	
 	wdt_enable((struct max6746_wdt_info *)watchdog_get_drvdata(wdd), true);
+	dev_info(pdev, "started!\n");
 	return 0;
 }
 
 static int wdt_stop(struct watchdog_device *wdd)
 {
+	struct max6746_wdt_info *pinfo = watchdog_get_drvdata(wdd);
+	struct device *pdev = &(pinfo->p_platformdev->dev);
+	
 	wdt_enable((struct max6746_wdt_info *)watchdog_get_drvdata(wdd), false);
+	dev_info(pdev, "stopped!\n");
 	return 0;
 }
 
@@ -134,8 +142,7 @@ static int max6746_wdt_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "initialized watchdog with heartbeat %ds\n",
 			max6746_wdd.timeout);
 
-	wdt_enable(pinfo, true);
-	wdt_ping(&max6746_wdd);
+	wdt_enable(pinfo, false);
 
 out:
 	if (0 != ret) {
