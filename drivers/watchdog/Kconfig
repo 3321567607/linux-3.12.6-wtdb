@@ -319,6 +319,14 @@ config TWL4030_WATCHDOG
 	  Support for TI TWL4030 watchdog.  Say 'Y' here to enable the
 	  watchdog timer support for TWL4030 chips.
 
+config MAX6746_WATCHDOG
+	tristate "max6746 watchdog"
+	select WATCHDOG_CORE
+	help
+	  Say Y here to support for the max6746 watchdog timer.
+	  To compile this driver as a module, choose M here: the
+	  module will be called max6746_wdt.
+
 config STMP3XXX_RTC_WATCHDOG
 	tristate "Freescale STMP3XXX & i.MX23/28 watchdog"
 	depends on RTC_DRV_STMP

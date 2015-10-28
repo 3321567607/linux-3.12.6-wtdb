@@ -412,6 +412,14 @@
 		};
 	};
 
+	wd_max6746 {
+		compatible = "maxsim,max6746";
+		status = "okay";
+		enable-gpios = <&gpio1 7 1>; /* gpio_1_7, low active */
+		feed-gpios = <&gpio1 0 1>; /* gpio_1_0, active leve ignored */
+		timeout = <13>;
+	};
+
 	ap6212_bluetooth {
 		compatible = "ampak,ap6212-blue";
 		blue_pwron_gpio = <&tca6416 4 0>; /* tca6416 io-04, active-high */
