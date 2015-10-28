@@ -61,7 +61,7 @@ static int wdt_ping(struct watchdog_device *wdd)
 	msleep(1);
 	gpio_set_value_cansleep(gpio, 1);
 	devm_gpio_free(pdev, gpio);
-	dev_info(pdev, "feed dog!\n");
+	//dev_info(pdev, "feed dog!\n");
 	
 	return 0;
 }
