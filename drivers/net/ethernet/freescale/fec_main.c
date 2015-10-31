@@ -1779,6 +1779,7 @@ fec_enet_open(struct net_device *ndev)
 	}
 	phy_start(fep->phy_dev);
 	netif_start_queue(ndev);
+	fec_restart(ndev, 0);
 	fep->opened = 1;
 	return 0;
 }
