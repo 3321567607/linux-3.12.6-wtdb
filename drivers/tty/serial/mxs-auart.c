@@ -185,6 +185,7 @@ static void mxs_auart_set_half_duplex(struct device *dev, struct mxs_auart_port 
 	int expected_level;
 	int actual_level;
 	unsigned long set_gpio_flags;
+	int idx = s->port.line;
 	bool half_duplex = false;
 
 	/* disable half-duplex at first */
@@ -202,12 +203,16 @@ static void mxs_auart_set_half_duplex(struct device *dev, struct mxs_auart_port 
 	actual_level = (gpio_get_value_cansleep(gpio) == 0) ? 0 : 1;
 	devm_gpio_free(dev, gpio);
 
-	if (expected_level != actual_level)
+	if (expected_level != actual_level) {
+		printk("uart-%d: half-duplex disabled\n", idx);
 		goto out;
+	}
 
 	/* read 'rxoff-gpio' from dt */
-	if ((gpio = of_get_named_gpio_flags(dev->of_node, "halfdup-rxoff-gpio", 0, &of_gpio_flags)) < 0)
+	if ((gpio = of_get_named_gpio_flags(dev->of_node, "halfdup-rxoff-gpio", 0, &of_gpio_flags)) < 0) {
+		printk("uart-%d: failed to enable half-duplex due to no switch gpio\n", idx);
 		goto out;
+	}
 
 	/* at first, don't turn off rx */
 	s->halfdup_rxoff_level = (of_gpio_flags == OF_GPIO_ACTIVE_LOW) ? 0 : 1;
@@ -216,14 +221,18 @@ static void mxs_auart_set_half_duplex(struct device *dev, struct mxs_auart_port 
 	else
 		set_gpio_flags = GPIOF_INIT_HIGH;
 
-	if (devm_gpio_request_one(dev, gpio, set_gpio_flags, "halfduplex rxoff"))
+	if (devm_gpio_request_one(dev, gpio, set_gpio_flags, "halfduplex rxoff")) {
+		printk("uart-%d: failed to enable half-duplex due to request failure!\n", idx);
 		goto out; /* failed request */
+	}
 
+	devm_gpio_free(dev, gpio);
+	printk("uart-%d: half-duplex eanbled!\n", idx);
 	half_duplex = true;
 	s->halfdup_rxoff_gpio = gpio;
 
 out:
-	printk("auart %d is %s!\n", s->port.line, half_duplex ? "half duplex" : "full duplex");
+	printk("auart-%d is %s!\n", idx, half_duplex ? "half duplex" : "full duplex");
 	return;
 }
 
