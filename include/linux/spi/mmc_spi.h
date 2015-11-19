@@ -47,6 +47,8 @@ struct mmc_spi_platform_data {
 	u16 powerup_msecs;		/* delay of up to 250 msec */
 	u32 ocr_mask;			/* available voltages */
 	void (*setpower)(struct device *, unsigned int maskval);
+	unsigned int pwr_gpio;
+	int pwr_gpio_level;
 };
 
 #ifdef CONFIG_OF

@@ -75,6 +75,7 @@ struct mmc_spi_platform_data *mmc_spi_get_pdata(struct spi_device *spi)
 	int num_ranges;
 	int i;
 	int ret = -EINVAL;
+	enum of_gpio_flags gpio_flags;
 
 	if (dev->platform_data || !np)
 		return dev->platform_data;
@@ -105,7 +106,6 @@ struct mmc_spi_platform_data *mmc_spi_get_pdata(struct spi_device *spi)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(oms->gpios); i++) {
-		enum of_gpio_flags gpio_flags;
 
 		oms->gpios[i] = of_get_gpio_flags(np, i, &gpio_flags);
 		if (!gpio_is_valid(oms->gpios[i]))
@@ -135,6 +135,9 @@ struct mmc_spi_platform_data *mmc_spi_get_pdata(struct spi_device *spi)
 	} else {
 		oms->pdata.caps |= MMC_CAP_NEEDS_POLL;
 	}
+
+	oms->pdata.pwr_gpio = of_get_named_gpio_flags(np, "pwr_gios", 0, &gpio_flags);
+	oms->pdata.pwr_gpio_level = (OF_GPIO_ACTIVE_LOW == gpio_flags) ? 0 : 1;
 
 	dev->platform_data = &oms->pdata;
 	return dev->platform_data;

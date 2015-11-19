@@ -37,6 +37,7 @@
 #include <linux/mmc/host.h>
 #include <linux/mmc/mmc.h>		/* for R1_SPI_* bit values */
 #include <linux/mmc/slot-gpio.h>
+#include <linux/gpio.h>
 
 #include <linux/spi/spi.h>
 #include <linux/spi/mmc_spi.h>
@@ -1297,6 +1298,24 @@ mmc_spi_detect_irq(int irq, void *mmc)
 	return IRQ_HANDLED;
 }
 
+static void mmc_spi_pwron(struct mmc_spi_platform_data *pdata, bool on)
+{
+	int level;
+	unsigned int gpio;
+	
+
+	if (pdata->pwr_gpio > 0) {
+		gpio = pdata->pwr_gpio;
+		level = on ? pdata->pwr_gpio_level : !(pdata->pwr_gpio_level);
+
+		gpio_request(gpio, "mmc_spi_pwr");
+		gpio_direction_output(gpio, level);
+		gpio_free(gpio);
+
+		printk("mmc_spi: power on by pulling gpio-%d %s\n", gpio, level ? "high" : "low");
+	}
+}
+
 static int mmc_spi_probe(struct spi_device *spi)
 {
 	void			*ones;
@@ -1451,6 +1470,8 @@ static int mmc_spi_probe(struct spi_device *spi)
 			goto fail_add_host;
 	}
 
+	mmc_spi_pwron(host->pdata, true);
+
 	dev_info(&spi->dev, "SD/MMC host %s%s%s%s%s\n",
 			dev_name(&mmc->class_dev),
 			host->dma_dev ? "" : ", no DMA",
@@ -1500,6 +1521,8 @@ static int mmc_spi_remove(struct spi_device *spi)
 			dma_unmap_single(host->dma_dev, host->data_dma,
 				sizeof(*host->data), DMA_BIDIRECTIONAL);
 		}
+
+		mmc_spi_pwron(host->pdata, false);
 
 		kfree(host->data);
 		kfree(host->ones);

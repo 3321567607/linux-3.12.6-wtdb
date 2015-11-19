@@ -420,6 +420,7 @@
 		mmc-slot@0 {
 			compatible = "mmc-spi-slot";
 			reg = <0>;
+			pwr_gios = <&gpio1 5 1>; /* low active */
 			voltage-ranges = <3200 3400>;
 			spi-max-frequency = <25000000>;
 		};
