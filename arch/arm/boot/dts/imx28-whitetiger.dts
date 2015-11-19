@@ -135,6 +135,19 @@
 					fsl,pull-up = <0>;
 				};
 
+				autra0duart_pins: autra0duart@0 {
+					reg = <0>;
+					fsl,pinmux-ids = <
+						0x3000 /* MX28_PAD_AUART0_RX__AUART0_RX */
+						0x3010 /* MX28_PAD_AUART0_TX__AUART0_TX */
+						0x3022 /* MX28_PAD_AUART0_CTS__DUART_RX */
+						0x3032 /* MX28_PAD_AUART0_RTS__DUART_TX */
+					>;
+					fsl,drive-strength = <0>;
+					fsl,voltage = <1>;
+					fsl,pull-up = <0>;
+				};
+
 				auart4_pins_wt: auart4-wt@0 {
 					reg = <0>;
 					fsl,pinmux-ids = <
@@ -241,7 +254,7 @@
 			auart1: serial@8006c000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&auart1_2pins_a>;
-				halfdup-enable-gpio = <&gpio4 15 1>;	/* low: enable half-duplex */
+				halfdup-enable-gpio = <&gpio4 15 0>;	/* high: enable half-duplex */
 				halfdup-rxoff-gpio = <&gpio4 10 0>;		/* high: turn off rx while txing */
 				status = "okay";
 			};
@@ -268,9 +281,9 @@
 			duart: serial@80074000 {
 				pinctrl-names = "default", "off-mode";
 				/*pinctrl-names = "default";*/
-				pinctrl-0 = <&duart_pins_b>;
-				pinctrl-1 = <&auart0_pins_a>;
-				switch-gpios = <&gpio1 25 1>; /* bank-1 pin-25, low: duart active */
+				pinctrl-0 = <&autra0duart_pins>; /* duart-2line   auart0-2line */
+				pinctrl-1 = <&auart0_pins_a>;    /* duart-disable auart0-4line */
+				switch-gpios = <&gpio1 25 1>;    /* bank-1 pin-25, low: duart-2line */
 				status = "okay";
 			};
 

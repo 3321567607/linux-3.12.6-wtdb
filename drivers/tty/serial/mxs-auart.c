@@ -125,6 +125,9 @@
 #define AUART_STAT_FERR				(1 << 16)
 #define AUART_STAT_RXCOUNT_MASK			0xffff
 
+#define FULL_DUPLEX_422 0
+#define HALF_DUPLEX_485 1
+
 static struct uart_driver auart_driver;
 
 enum mxs_auart_type {
@@ -178,80 +181,67 @@ static struct of_device_id mxs_auart_dt_ids[] = {
 };
 MODULE_DEVICE_TABLE(of, mxs_auart_dt_ids);
 
+static int halfduplex = FULL_DUPLEX_422;
+module_param_named(halfduplex, halfduplex, int, S_IRUGO | S_IWUSR | S_IWGRP);
+
+static void mxs_auart_rxoff(struct mxs_auart_port *s)
+{
+	if ((HALF_DUPLEX_485 == halfduplex) && (s->halfdup_rxoff_gpio > 0)) {
+		gpio_request(s->halfdup_rxoff_gpio, "halfduplex_rxoff");
+		gpio_direction_output(s->halfdup_rxoff_gpio, s->halfdup_rxoff_level);
+		gpio_free(s->halfdup_rxoff_gpio);
+	}
+}
+
+static void mxs_auart_rxon(struct mxs_auart_port *s)
+{
+	if ((HALF_DUPLEX_485 == halfduplex) && (s->halfdup_rxoff_gpio > 0)) {
+		while (!(readl(s->port.membase + AUART_STAT) & AUART_STAT_TXFE));
+		mdelay(1);
+		gpio_request(s->halfdup_rxoff_gpio, "halfduplex_rxoff");
+		gpio_direction_output(s->halfdup_rxoff_gpio, !(s->halfdup_rxoff_level));
+		gpio_free(s->halfdup_rxoff_gpio);
+	}
+}
+
 static void mxs_auart_set_half_duplex(struct device *dev, struct mxs_auart_port *s)
 {
 	int gpio;
 	enum of_gpio_flags of_gpio_flags;
 	int expected_level;
 	int actual_level;
-	unsigned long set_gpio_flags;
 	int idx = s->port.line;
-	bool half_duplex = false;
-
-	/* disable half-duplex at first */
-	s->halfdup_rxoff_gpio = -1;
-
-	/* read 'enable-gpio' from dt */
-	if ((gpio = of_get_named_gpio_flags(dev->of_node, "halfdup-enable-gpio", 0, &of_gpio_flags)) < 0)
-		return; /* no entry in dt */
-
-	/* request 'enable-gpio' for reading input level */
-	if (devm_gpio_request_one(dev, gpio, GPIOF_DIR_IN, "halfduplex enabled"))
-		goto out; /* failed request */
-
-	expected_level = (of_gpio_flags == OF_GPIO_ACTIVE_LOW) ? 0 : 1;
-	actual_level = (gpio_get_value_cansleep(gpio) == 0) ? 0 : 1;
-	devm_gpio_free(dev, gpio);
-
-	if (expected_level != actual_level) {
-		printk("uart-%d: half-duplex disabled\n", idx);
-		goto out;
-	}
 
 	/* read 'rxoff-gpio' from dt */
-	if ((gpio = of_get_named_gpio_flags(dev->of_node, "halfdup-rxoff-gpio", 0, &of_gpio_flags)) < 0) {
-		printk("uart-%d: failed to enable half-duplex due to no switch gpio\n", idx);
-		goto out;
+	s->halfdup_rxoff_gpio = of_get_named_gpio_flags(dev->of_node, "halfdup-rxoff-gpio", 0, &of_gpio_flags);
+	if ((s->halfdup_rxoff_gpio) >= 0) {
+		s->halfdup_rxoff_level = (of_gpio_flags == OF_GPIO_ACTIVE_LOW) ? 0 : 1;
+		mxs_auart_rxon(s); /* at first, don't turn off rx */
+
+		/* read 'enable-gpio' from dt */
+		gpio = of_get_named_gpio_flags(dev->of_node, "halfdup-enable-gpio", 0, &of_gpio_flags);
+		if (gpio >= 0) {
+			expected_level = (of_gpio_flags == OF_GPIO_ACTIVE_LOW) ? 0 : 1;
+
+			/* request 'enable-gpio' for reading input level */
+			if (!devm_gpio_request_one(dev, gpio, GPIOF_DIR_IN, "halfduplex enabled")) {
+				actual_level = (gpio_get_value_cansleep(gpio) == 0) ? 0 : 1;
+				devm_gpio_free(dev, gpio);
+
+				if (expected_level != actual_level) {
+					printk("uart-%d: half-duplex disabled\n", idx);
+					halfduplex = FULL_DUPLEX_422;
+				} else {
+					printk("uart-%d: half-duplex enabled\n", idx);
+					halfduplex = HALF_DUPLEX_485;
+				}
+			}
+		}
+		printk("auart-%d is %s!\n", idx, halfduplex ? "half duplex" : "full duplex");
 	}
 
-	/* at first, don't turn off rx */
-	s->halfdup_rxoff_level = (of_gpio_flags == OF_GPIO_ACTIVE_LOW) ? 0 : 1;
-	if (s->halfdup_rxoff_level)
-		set_gpio_flags = GPIOF_INIT_LOW;
-	else
-		set_gpio_flags = GPIOF_INIT_HIGH;
-
-	if (devm_gpio_request_one(dev, gpio, set_gpio_flags, "halfduplex rxoff")) {
-		printk("uart-%d: failed to enable half-duplex due to request failure!\n", idx);
-		goto out; /* failed request */
-	}
-
-	devm_gpio_free(dev, gpio);
-	printk("uart-%d: half-duplex eanbled!\n", idx);
-	half_duplex = true;
-	s->halfdup_rxoff_gpio = gpio;
-
-out:
-	printk("auart-%d is %s!\n", idx, half_duplex ? "half duplex" : "full duplex");
 	return;
 }
-
-static void mxs_auart_rxoff(struct mxs_auart_port *s)
-{
-	if (s->halfdup_rxoff_gpio > 0) {
-		gpio_direction_output(s->halfdup_rxoff_gpio, s->halfdup_rxoff_level);
-	}
-}
-
-static void mxs_auart_rxon(struct mxs_auart_port *s)
-{
-	if (s->halfdup_rxoff_gpio > 0) {
-		while (!(readl(s->port.membase + AUART_STAT) & AUART_STAT_TXFE));
-		mdelay(1);
-		gpio_direction_output(s->halfdup_rxoff_gpio, !(s->halfdup_rxoff_level));
-	}
-}
-
 
 static inline int is_imx28_auart(struct mxs_auart_port *s)
 {

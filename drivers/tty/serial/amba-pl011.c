@@ -2124,6 +2124,7 @@ static void pl011_switch_pins(struct amba_device *dev, struct uart_amba_port *ua
 				printk("%s: switch:gpio-%d, active-%s, cur-level:%d, duart active!\n",
 					__FUNCTION__, switch_gpio, active_val ? "high" : "low", gpio_val);
 			}
+			devm_gpio_free(&(dev->dev), switch_gpio);
 		} else {
 			printk("%s: failed to request switch:gpio-%d\n", __FUNCTION__, switch_gpio);
 		}
