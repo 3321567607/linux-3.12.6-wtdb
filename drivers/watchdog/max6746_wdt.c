@@ -46,8 +46,8 @@ static void wdt_enable(struct max6746_wdt_info *pinfo, bool enable)
 				init_flags = GPIOF_OUT_INIT_LOW;
 		}
 
-		devm_gpio_request_one(&(pdev->dev), pinfo->enable_gpio, init_flags, "max6746_enable");
-		devm_gpio_free(&(pdev->dev), pinfo->enable_gpio);
+		if (0 == devm_gpio_request_one(&(pdev->dev), pinfo->enable_gpio, init_flags, "max6746_enable"))
+			devm_gpio_free(&(pdev->dev), pinfo->enable_gpio);
 	}
 }
 
