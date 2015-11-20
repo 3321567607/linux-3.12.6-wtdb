@@ -489,7 +489,10 @@ static int hym8563_probe(struct i2c_client *client, const struct i2c_device_id *
 	//wake_lock_init(&hym8563->wake_lock, WAKE_LOCK_SUSPEND, "rtc_hym8563");
 	i2c_set_clientdata(client, hym8563);
 
-	hym8563_init_device(client);	
+	if (hym8563_init_device(client) < 0) {
+		printk("hym8563: on i2c-%d nonexistent\n", client->adapter->nr);
+		goto exit;
+	}
 	hym8563_enable_count(client, 0);	
 	
 	// check power down 
