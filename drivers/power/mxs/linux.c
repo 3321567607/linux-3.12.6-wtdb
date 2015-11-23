@@ -75,7 +75,32 @@ int mxs_pwr_irqs[NUMS_MXS_PWR_IRQS];
 /*void __iomem *mxs_digctl_base;*/
 void __iomem *mxs_rtc_base;
 void __iomem *mxs_lradc_base;
+void __iomem *mxs_pinctrl_base;
 
+extern void (*pm_power_off)(void);
+
+void mxs_pm_power_off(void)
+{
+	/* turn off vbat_gsm, gpio_3_28 output 0 */
+	__raw_writel(1<<28, mxs_pinctrl_base + 0x738); /* OUT: clr bit */
+	__raw_writel(1<<28, mxs_pinctrl_base + 0xb34); /* OE:  set bit */
+
+	/* turn off fec_3v3, gpio_0_26, output 1 */
+	__raw_writel(1<<26, mxs_pinctrl_base + 0x704); /* OUT: set bit */
+	__raw_writel(1<<26, mxs_pinctrl_base + 0xb00); /* OE:  set bit */
+
+	/* turn off usb0/1 vbus, gpio_4_11, gpio_4_12, output 0 */
+	__raw_writel(3<<11, mxs_pinctrl_base + 0x748); /* OUT: clr bit */
+	__raw_writel(3<<11, mxs_pinctrl_base + 0xb44); /* OE:  set bit */
+	/* turn off vccio_3v3, gpio_4_14, output 0 */
+	__raw_writel(1<<14, mxs_pinctrl_base + 0x748); /* OUT: clr bit */
+	__raw_writel(1<<14, mxs_pinctrl_base + 0xb44); /* OE:  set bit */
+
+	/* clear auto-restart bit */
+	__raw_writel(0x20000, mxs_rtc_base+0x68);
+
+	mxspwr_shutdown("usr request");
+}
 
 void save_irq_event(enum MXS_IRQ_EVENT evt)
 {
@@ -346,8 +371,9 @@ static int mxs_bat_init_regs(struct platform_device *pdev)
 
 	np = pdev->dev.of_node;                                       mxs_pwr_base    = of_iomap(np, 0);
 	//np = of_find_compatible_node(NULL, NULL, "fsl,imx28-digctl"); mxs_digctl_base = of_iomap(np, 0);
-	np = of_find_compatible_node(NULL, NULL, "fsl,stmp3xxx-rtc"); mxs_rtc_base    = of_iomap(np, 0);
-	np = of_find_compatible_node(NULL, NULL, "fsl,imx28-lradc");  mxs_lradc_base  = of_iomap(np, 0);
+	np = of_find_compatible_node(NULL, NULL, "fsl,imx28-pinctrl"); mxs_pinctrl_base = of_iomap(np, 0);
+	np = of_find_compatible_node(NULL, NULL, "fsl,stmp3xxx-rtc");  mxs_rtc_base     = of_iomap(np, 0);
+	np = of_find_compatible_node(NULL, NULL, "fsl,imx28-lradc");   mxs_lradc_base   = of_iomap(np, 0);
 
 	IRQ_BATT_BRNOUT    = platform_get_irq_byname(pdev, "batt_bo");
 	IRQ_VDDD_BRNOUT    = platform_get_irq_byname(pdev, "vddd_bo");
@@ -565,6 +591,8 @@ static int mxs_bat_probe(struct platform_device *pdev)
 		dev_err(info->dev, "failed to register ac power supply\n");
 		goto unregister_bat;
 	}
+
+	pm_power_off = mxs_pm_power_off;
 
 	/* handoff protection handling from bootlets protection method
 	 * to kernel protection method */
