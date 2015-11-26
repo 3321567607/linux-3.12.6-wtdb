@@ -13,7 +13,7 @@
 /include/ "imx28.dtsi"
 
 / {
-	model = "Techsigno CPU-0285-00 Board";
+	model = "wt_reliagate_1005";
 	compatible = "techsigno,whitetiger", "fsl,imx28";
 
 	memory {

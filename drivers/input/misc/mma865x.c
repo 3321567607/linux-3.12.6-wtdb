@@ -318,7 +318,7 @@ static void report_abs(void)
 		return;
 	}
 	
-	dprintk(DEBUG_DATA_INFO, "x= 0x%hx, y = 0x%hx, z = 0x%hx\n", x, y, z);
+	//dprintk(DEBUG_DATA_INFO, "x= 0x%hx, y = 0x%hx, z = 0x%hx\n", x, y, z);
 	input_report_abs(mma865x_idev->input, ABS_X, x);
 	input_report_abs(mma865x_idev->input, ABS_Y, y);
 	input_report_abs(mma865x_idev->input, ABS_Z, z);
@@ -458,12 +458,20 @@ static int mma865x_probe(struct i2c_client *client,
 	struct input_dev *idev;
 	struct mma865x_data *pdata = &g_mma865x_data;
 
+	dev_info(&client->dev, "build time %s %s\n", __DATE__, __TIME__);
+
+	result = i2c_smbus_read_byte_data(client,MMA865X_WHO_AM_I);
+	printk("%s (1):addr = 0x%x, Read ID value is :%02x\n",
+		__func__, client->addr, result);
+
+	if (result != 0x5a)
+		return -ENODEV;
+
 	mma865x_i2c_client = client;
 
 	hwmon_dev = hwmon_device_register(&client->dev);
 	assert(!(IS_ERR(hwmon_dev)));
 	
-	dev_info(&client->dev, "build time %s %s\n", __DATE__, __TIME__);
 	/* Initialize the MMA865X chip */
 	pdata->client = client;
 	pdata->mode = MODE_2G;
@@ -530,9 +538,6 @@ static int mma865x_probe(struct i2c_client *client,
 
 	dprintk(DEBUG_INIT, "mma865x device driver probe successfully\n");
 
-	result = i2c_smbus_read_byte_data(client,MMA865X_WHO_AM_I);
-	printk("%s (1):addr = 0x%x, Read ID value is :%02x\n",
-		__func__, client->addr, result);
 
 	return 0;
 err_create_sysfs:
