@@ -235,11 +235,11 @@
 				pinctrl-0 = <&i2c1_pins_a>;
 				status = "okay";
 
-				hym8653_1: rtc@51 {
+				/*hym8653_1: rtc@51 {
 					compatible = "haoyu,hym8653";
 					clkout = <0>;
 					reg = <0x51>;
-				};
+				};*/
 
 				mma8653: threeaxis@1d {
 					compatible = "fsl,mma8563";
@@ -384,7 +384,7 @@
 			enable-active-high;
 		};
 
-		reg_rdioboard_batgsm: radioboard_bat {
+		/*reg_rdioboard_batgsm: radioboard_bat {
 			compatible = "regulator-fixed";
 			regulator-name = "radioboard_bat";
 			regulator-min-microvolt = <4000000>;
@@ -393,7 +393,7 @@
 			enable-active-high;
 			regulator-boot-on;
 			regulator-always-on;
-		};
+		};*/
 
 		reg_wifi_pwr: wifi_pwr {
 			compatible = "regulator-fixed";
