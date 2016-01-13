@@ -18,6 +18,7 @@
 #include <linux/irq.h>
 #include <linux/irqdomain.h>
 #include <linux/i2c.h>
+#include <linux/delay.h>
 #include <linux/platform_data/pca953x.h>
 #include <linux/slab.h>
 #ifdef CONFIG_OF_GPIO
@@ -730,6 +731,8 @@ static int pca953x_probe(struct i2c_client *client,
 	int gpio;
 	int i;
 
+	printk("starting pca953x_probe...\n");
+
 	chip = devm_kzalloc(&client->dev,
 			sizeof(struct pca953x_chip), GFP_KERNEL);
 	if (chip == NULL)
@@ -785,6 +788,7 @@ static int pca953x_probe(struct i2c_client *client,
 
 	i2c_set_clientdata(client, chip);
 
+	printk("initializing expander ios...\n");
 	for (i = 0; i < (chip->gpio_chip).ngpio; i++) {
 		gpio = (chip->gpio_chip).base + i;
 		if (!gpio_request(gpio, "pca953x")) {
@@ -792,6 +796,7 @@ static int pca953x_probe(struct i2c_client *client,
 				printk("set gpio %d failed!\n", gpio);
 			gpio_free((chip->gpio_chip).base + i);
 		}
+		msleep(10);
 	}
 	printk("pca953x: %s\n", id->name);
 
