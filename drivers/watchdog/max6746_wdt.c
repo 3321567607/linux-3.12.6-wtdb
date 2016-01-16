@@ -25,7 +25,12 @@ struct max6746_wdt_info {
 	struct platform_device *p_platformdev;
 	int                     feed_gpio;
 	int                     enable_gpio;
+	unsigned int            feedms;
+	int                     feedcnt;
+	int                     userstarted;
 	enum of_gpio_flags      enable_flag;
+	struct timer_list       wd_timer;
+	struct work_struct      wd_work;
 };
 
 static void wdt_enable(struct max6746_wdt_info *pinfo, bool enable)
@@ -51,9 +56,8 @@ static void wdt_enable(struct max6746_wdt_info *pinfo, bool enable)
 	}
 }
 
-static int wdt_ping(struct watchdog_device *wdd)
+static int feed_max6746(struct max6746_wdt_info *pinfo)
 {
-	struct max6746_wdt_info *pinfo = watchdog_get_drvdata(wdd);
 	struct device *pdev = &(pinfo->p_platformdev->dev);
 	unsigned int gpio = (unsigned int)(pinfo->feed_gpio);
 
@@ -66,11 +70,17 @@ static int wdt_ping(struct watchdog_device *wdd)
 	return 0;
 }
 
+static int wdt_ping(struct watchdog_device *wdd)
+{
+	return feed_max6746((struct max6746_wdt_info *)watchdog_get_drvdata(wdd));
+}
+
 static int wdt_start(struct watchdog_device *wdd)
 {
 	struct max6746_wdt_info *pinfo = watchdog_get_drvdata(wdd);
 	struct device *pdev = &(pinfo->p_platformdev->dev);
-	
+
+	pinfo->userstarted = 1;
 	wdt_enable((struct max6746_wdt_info *)watchdog_get_drvdata(wdd), true);
 	dev_info(pdev, "started!\n");
 	return 0;
@@ -83,6 +93,7 @@ static int wdt_stop(struct watchdog_device *wdd)
 	
 	wdt_enable((struct max6746_wdt_info *)watchdog_get_drvdata(wdd), false);
 	dev_info(pdev, "stopped!\n");
+	wdt_ping(wdd);
 	return 0;
 }
 
@@ -105,6 +116,29 @@ static struct watchdog_device max6746_wdd = {
 	.max_timeout = MAX6746_MAX_TIMEOUT,
 	.status = WATCHDOG_NOWAYOUT_INIT_STATUS,
 };
+
+static void feed_work(struct work_struct *work)
+{
+	struct max6746_wdt_info *pinfo = container_of(work, struct max6746_wdt_info, wd_work);
+	
+	feed_max6746(pinfo);
+}
+
+static void max6746_timer(unsigned long data)
+{
+	struct max6746_wdt_info *pinfo = (struct max6746_wdt_info *)data;
+
+	if ((pinfo->feedcnt > 0) && (0 == pinfo->userstarted)) {
+		
+		schedule_work(&pinfo->wd_work);
+		mod_timer(&pinfo->wd_timer, jiffies + msecs_to_jiffies(pinfo->feedms));
+		pinfo->feedcnt--;
+	} else {
+		pinfo->feedcnt = 0;
+		del_timer_sync(&pinfo->wd_timer);
+	}
+
+}
 
 static int max6746_wdt_probe(struct platform_device *pdev)
 {
@@ -139,10 +173,25 @@ static int max6746_wdt_probe(struct platform_device *pdev)
 		goto out;
 	}
 
+	if (0 != of_property_read_u32(np, "feedcount", &(pinfo->feedcnt))) {
+		pinfo->feedcnt = -1;
+	} else {
+		init_timer(&pinfo->wd_timer);
+		pinfo->wd_timer.data = (unsigned long)pinfo;
+		pinfo->wd_timer.function = max6746_timer;
+		pinfo->feedms = max6746_wdd.timeout * 1000;
+		pinfo->wd_timer.expires = jiffies + msecs_to_jiffies(pinfo->feedms);
+		add_timer(&(pinfo->wd_timer));
+		INIT_WORK(&(pinfo->wd_work), feed_work);
+	}
+	pinfo->userstarted = 0;
+
+	feed_max6746(pinfo);
+	wdt_enable(pinfo, false);
+
 	dev_info(&pdev->dev, "initialized watchdog with heartbeat %ds\n",
 			max6746_wdd.timeout);
 
-	wdt_enable(pinfo, false);
 
 out:
 	if (0 != ret) {
@@ -156,6 +205,13 @@ out:
 
 static int max6746_wdt_remove(struct platform_device *pdev)
 {
+	struct max6746_wdt_info *pinfo = watchdog_get_drvdata(&max6746_wdd);
+
+	if (pinfo->feedcnt > 0) {
+		del_timer_sync(&pinfo->wd_timer);
+		pinfo->feedcnt = 0;
+	}
+
 	watchdog_unregister_device(&max6746_wdd);
 	kfree(watchdog_get_drvdata(&max6746_wdd));
 	return 0;
