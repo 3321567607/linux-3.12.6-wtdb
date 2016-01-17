@@ -1274,11 +1274,58 @@ static void mmc_spi_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	}
 }
 
+static void mmc_spi_pwron(struct mmc_spi_platform_data *pdata, int on)
+{
+	int level;
+	unsigned int gpio;
+	static int cur_stat = -1;
+	
+
+	if ((pdata->pwr_gpio > 0) && (cur_stat != on)) {
+		gpio = pdata->pwr_gpio;
+		level = on ? pdata->pwr_gpio_level : !(pdata->pwr_gpio_level);
+
+		gpio_request(gpio, "mmc_spi_pwr");
+		gpio_direction_output(gpio, level);
+		gpio_free(gpio);
+		cur_stat = on;
+		//printk("power %s sd card!\n", on ? "on" : "off");
+	}
+}
+struct mmc_gpio {
+	int ro_gpio;
+	int cd_gpio;
+	char *ro_label;
+	char cd_label[0];
+};
+
+static int mmc_gpio_getcd(struct mmc_host *mmchost)
+{
+	struct mmc_spi_host	*spihost = (struct mmc_spi_host	*)mmc_priv(mmchost);
+	struct mmc_gpio *ctx = mmchost->slot.handler_priv;
+	int ret;
+
+	if (!ctx || !gpio_is_valid(ctx->cd_gpio))
+		return -ENOSYS;
+
+	ret = !gpio_get_value_cansleep(ctx->cd_gpio) ^
+		!!(mmchost->caps2 & MMC_CAP2_CD_ACTIVE_HIGH);
+
+	if (0 == ret) {
+		/* power off sd card */
+		mmc_spi_pwron(spihost->pdata, 0);
+	} else {
+		mmc_spi_pwron(spihost->pdata, 1);
+	}
+
+	return ret;
+}
+
 static const struct mmc_host_ops mmc_spi_ops = {
 	.request	= mmc_spi_request,
 	.set_ios	= mmc_spi_set_ios,
 	.get_ro		= mmc_gpio_get_ro,
-	.get_cd		= mmc_gpio_get_cd,
+	.get_cd		= mmc_gpio_getcd,
 };
 
 
@@ -1296,24 +1343,6 @@ mmc_spi_detect_irq(int irq, void *mmc)
 
 	mmc_detect_change(mmc, msecs_to_jiffies(delay_msec));
 	return IRQ_HANDLED;
-}
-
-static void mmc_spi_pwron(struct mmc_spi_platform_data *pdata, bool on)
-{
-	int level;
-	unsigned int gpio;
-	
-
-	if (pdata->pwr_gpio > 0) {
-		gpio = pdata->pwr_gpio;
-		level = on ? pdata->pwr_gpio_level : !(pdata->pwr_gpio_level);
-
-		gpio_request(gpio, "mmc_spi_pwr");
-		gpio_direction_output(gpio, level);
-		gpio_free(gpio);
-
-		printk("mmc_spi: power on by pulling gpio-%d %s\n", gpio, level ? "high" : "low");
-	}
 }
 
 static int mmc_spi_probe(struct spi_device *spi)
@@ -1470,7 +1499,7 @@ static int mmc_spi_probe(struct spi_device *spi)
 			goto fail_add_host;
 	}
 
-	mmc_spi_pwron(host->pdata, true);
+	mmc_spi_pwron(host->pdata, 1);
 
 	dev_info(&spi->dev, "SD/MMC host %s%s%s%s%s\n",
 			dev_name(&mmc->class_dev),
@@ -1522,7 +1551,7 @@ static int mmc_spi_remove(struct spi_device *spi)
 				sizeof(*host->data), DMA_BIDIRECTIONAL);
 		}
 
-		mmc_spi_pwron(host->pdata, false);
+		mmc_spi_pwron(host->pdata, 0);
 
 		kfree(host->data);
 		kfree(host->ones);

@@ -2384,7 +2384,7 @@ int _mmc_detect_card_removed(struct mmc_host *host)
 	 * detect work 200ms later for this case.
 	 */
 	if (!ret && host->ops->get_cd && !host->ops->get_cd(host)) {
-		mmc_detect_change(host, msecs_to_jiffies(200));
+		mmc_card_set_removed(host->card);
 		pr_debug("%s: card removed too slowly\n", mmc_hostname(host));
 	}
 

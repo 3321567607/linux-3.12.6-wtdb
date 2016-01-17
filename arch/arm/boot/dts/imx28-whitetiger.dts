@@ -220,8 +220,8 @@
 
 				tca6416: gpio@20 {
 					compatible = "ti,tca6416";
-					interrupt-parent = <&gpio0>;
-					interrupts = <16 8>; // MX28_PAD_GPMI_CE0N__GPIO_0_16, active-low level-sensitive 
+					//interrupt-parent = <&gpio0>;
+					//interrupts = <16 8>; // MX28_PAD_GPMI_CE0N__GPIO_0_16, active-low level-sensitive 
 					reg = <0x20>;
 					gpio-controller;
 					#gpio-cells = <2>;
@@ -421,7 +421,7 @@
 			compatible = "mmc-spi-slot";
 			reg = <0>;
 			pwr_gios = <&gpio1 5 1>; /* low active */
-			/*gpios = <&gpio1 22 1>;*/ /* gpio_1_22 low-active */
+			gpios = <&gpio1 18 1>; /* gpio_1_22 low-active */
 			voltage-ranges = <3200 3400>;
 			spi-max-frequency = <25000000>;
 		};
