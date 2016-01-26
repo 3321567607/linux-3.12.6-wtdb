@@ -61,7 +61,9 @@ static int feed_max6746(struct max6746_wdt_info *pinfo)
 	struct device *pdev = &(pinfo->p_platformdev->dev);
 	unsigned int gpio = (unsigned int)(pinfo->feed_gpio);
 
-	devm_gpio_request_one(pdev, gpio, GPIOF_OUT_INIT_LOW, "max6746_feed");
+	devm_gpio_request_one(pdev, gpio, GPIOF_OUT_INIT_HIGH, "max6746_feed");
+	msleep(1);
+	gpio_set_value_cansleep(gpio, 0);
 	msleep(1);
 	gpio_set_value_cansleep(gpio, 1);
 	devm_gpio_free(pdev, gpio);
@@ -120,7 +122,7 @@ static struct watchdog_device max6746_wdd = {
 static void feed_work(struct work_struct *work)
 {
 	struct max6746_wdt_info *pinfo = container_of(work, struct max6746_wdt_info, wd_work);
-	
+
 	feed_max6746(pinfo);
 }
 
