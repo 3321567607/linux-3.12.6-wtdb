@@ -6055,12 +6055,13 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 #ifdef SET_RANDOM_MAC_SOFTAP
 		SRANDOM32((uint)jiffies);
 		rand_mac = RANDOM32();
+		memcpy(iovbuf, dhd->mac.octet, ETHER_ADDR_LEN);
 		iovbuf[0] = 0x02;			   /* locally administered bit */
 		iovbuf[1] = 0x1A;
 		iovbuf[2] = 0x11;
-		iovbuf[3] = (unsigned char)(rand_mac & 0x0F) | 0xF0;
+		/*iovbuf[3] = (unsigned char)(rand_mac & 0x0F) | 0xF0;
 		iovbuf[4] = (unsigned char)(rand_mac >> 8);
-		iovbuf[5] = (unsigned char)(rand_mac >> 16);
+		iovbuf[5] = (unsigned char)(rand_mac >> 16);*/
 
 		bcm_mkiovar("cur_etheraddr", (void *)iovbuf, ETHER_ADDR_LEN, buf, sizeof(buf));
 		ret = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, buf, sizeof(buf), TRUE, 0);
