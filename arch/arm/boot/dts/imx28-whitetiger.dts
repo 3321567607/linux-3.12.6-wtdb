@@ -159,11 +159,16 @@
 				compatible = "fsl,imx28-power";
 				status = "okay";
 				interrupts = <0 1 2 3 4 5 6>;
-				clocks = <&clks 41>; /* lradc clock */
 				interrupt-names = "batt_bo", "vddd_bo", "vddio_bo",
 					"vdda_bo", "vdd5v_droop", "dcdc4p2_bo", "vdd5v";
 			};
 			
+			lradc: lradc@80050000 {
+				status = "okay";
+				clocks = <&clks 41>; /* lradc clock */
+				hwpins = <0x3d>; /* 0b_0011_1101, chan0,2,3,4,5 */
+			};
+
 			i2c0: i2c@80058000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&i2c0_pins_a>;
