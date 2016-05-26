@@ -28,6 +28,7 @@
 #include <linux/skbuff.h>
 #include <linux/delay.h>
 #include <linux/spi/spi.h>
+#include <linux/of_gpio.h>
 
 #include "enc28j60_hw.h"
 
@@ -649,6 +650,54 @@ static void enc28j60_lowpower(struct enc28j60_net *priv, bool is_low)
 	mutex_unlock(&priv->lock);
 }
 
+static void enc28j60_hw_down(struct spi_device *spi)
+{
+	unsigned int rst_pin;
+	int ret;
+
+	rst_pin = of_get_named_gpio(spi->dev.of_node, "gpios-reset", 0);
+	if (!gpio_is_valid(rst_pin)) {
+		dev_err(&spi->dev, "Missing dt property: gpios-reset\n");
+		return;
+	}
+
+	ret = devm_gpio_request_one(&spi->dev, rst_pin, GPIOF_OUT_INIT_HIGH, "enc28j60-reset");
+	if (ret) {
+		dev_err(&spi->dev, "failed to request gpio %d: %d\n", rst_pin, ret);
+		return;
+	}
+
+	gpio_set_value_cansleep(rst_pin, 0);
+	devm_gpio_free(&spi->dev, rst_pin);
+	msleep(100);
+}
+
+static void enc28j60_hw_reset(struct spi_device *spi)
+{
+	unsigned int rst_pin;
+	int ret;
+
+	rst_pin = of_get_named_gpio(spi->dev.of_node, "gpios-reset", 0);
+	if (!gpio_is_valid(rst_pin)) {
+		dev_err(&spi->dev, "Missing dt property: gpios-reset\n");
+		return;
+	}
+
+	ret = devm_gpio_request_one(&spi->dev, rst_pin, GPIOF_OUT_INIT_HIGH, "enc28j60-reset");
+	if (ret) {
+		dev_err(&spi->dev, "failed to request gpio %d: %d\n", rst_pin, ret);
+		return;
+	}
+
+	gpio_set_value_cansleep(rst_pin, 1);
+	msleep(100);
+	gpio_set_value_cansleep(rst_pin, 0);
+	msleep(100);
+	gpio_set_value_cansleep(rst_pin, 1);
+	devm_gpio_free(&spi->dev, rst_pin);
+	msleep(100);
+}
+
 static int enc28j60_hw_init(struct enc28j60_net *priv)
 {
 	u8 reg;
@@ -658,6 +707,7 @@ static int enc28j60_hw_init(struct enc28j60_net *priv)
 			priv->full_duplex ? "FullDuplex" : "HalfDuplex");
 
 	mutex_lock(&priv->lock);
+	enc28j60_hw_reset(priv->spi);
 	/* first reset the chip */
 	enc28j60_soft_reset(priv);
 	/* Clear ECON1 */
@@ -1390,6 +1440,7 @@ static int enc28j60_net_close(struct net_device *dev)
 	enc28j60_hw_disable(priv);
 	enc28j60_lowpower(priv, true);
 	netif_stop_queue(dev);
+	enc28j60_hw_down(priv->spi);
 
 	return 0;
 }
@@ -1546,6 +1597,7 @@ static int enc28j60_probe(struct spi_device *spi)
 	struct enc28j60_net *priv;
 	int ret = 0;
 
+	enc28j60_hw_reset(spi);
 	if (netif_msg_drv(&debug))
 		dev_info(&spi->dev, DRV_NAME " Ethernet driver %s loaded\n",
 			DRV_VERSION);
@@ -1630,10 +1682,16 @@ static int enc28j60_remove(struct spi_device *spi)
 	return 0;
 }
 
+static const struct of_device_id enc28j60_dt_ids[] = {
+	{ .compatible = "microchip,enc28j60", },
+	{ }
+};
+
 static struct spi_driver enc28j60_driver = {
 	.driver = {
 		   .name = DRV_NAME,
 		   .owner = THIS_MODULE,
+		   .of_match_table = enc28j60_dt_ids,
 	 },
 	.probe = enc28j60_probe,
 	.remove = enc28j60_remove,
