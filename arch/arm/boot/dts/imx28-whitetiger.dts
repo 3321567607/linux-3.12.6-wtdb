@@ -13,8 +13,8 @@
 /include/ "imx28.dtsi"
 
 / {
-	model = "wt_reliagate_1005";
-	compatible = "techsigno,whitetiger", "fsl,imx28";
+	model = "SYS-04231-00";
+	compatible = "techsigno,ginevra", "fsl,imx28";
 
 	memory {
 		reg = <0x40000000 0x50000000>;
@@ -22,32 +22,6 @@
 
 	apb@80000000 {
 		apbh@80000000 {
-			/*gpmi-nand@8000c000 {
-				pinctrl-names = "default";
-				pinctrl-0 = <&gpmi_pins_a &gpmi_status_cfg
-					     &gpmi_pins_wt>;
-				status = "okay";
-				partition@0 {
-					label = "gpmi-nfc-0-boot";
-					reg = <0x00000000 0x01400000>;
-					read-only;
-				};
-				partition@1 {
-					label = "gpmi-nfc-general-use";
-					reg = <0x01400000 0x0EC00000>;
-				};
-			};*/
-
-			ssp0: ssp@80010000 {
-				compatible = "fsl,imx28-mmc";
-				pinctrl-names = "default";
-				pinctrl-0 = <&mmc0_4bit_pins_wt
-					&mmc0_sck_cfg>;
-				bus-width = <4>;
-				status = "okay";
-				is_bcmdhd;
-			};
-
 			ssp1: ssp@80012000 {
 				compatible = "fsl,imx28-mmc";
 				pinctrl-names = "default";
@@ -60,14 +34,14 @@
 				status = "okay";
 			};
 
-			/*ssp2: ssp@80014000 {
+			ssp2: ssp@80014000 {
 				#address-cells = <1>;
 				#size-cells = <0>;
 				compatible = "fsl,imx28-spi";
 				pinctrl-names = "default";
-				pinctrl-0 = <&spi2_pins_a>;
+				pinctrl-0 = <&spi2_pins_b>;
 				status = "okay";
-			};*/
+			};
 
 			pinctrl@80018000 {
 				pinctrl-names = "default";
@@ -82,6 +56,19 @@
 					fsl,drive-strength = <0>;
 					fsl,voltage = <1>;
 					fsl,pull-up = <0>;
+				};
+
+				spi2_pins_b: spi2@1 {
+					reg = <1>;
+					fsl,pinmux-ids = <
+						0x2041 /* MX28_PAD_SSP0_DATA4__SSP2_D0 , MISO */
+						0x2051 /* MX28_PAD_SSP0_DATA5__SSP2_D3 , SSn0 */
+						0x2061 /* MX28_PAD_SSP0_DATA6__SSP2_CMD, MOSI */
+						0x2071 /* MX28_PAD_SSP0_DATA7__SSP2_SCK, SCK  */
+					>;
+					fsl,drive-strength = <1>;
+					fsl,voltage = <1>;
+					fsl,pull-up = <1>;
 				};
 
 				mmc1_8bit_pins_a: mmc1-8bit@0 {
@@ -107,31 +94,6 @@
 						0x0191
 					>;
 					fsl,drive-strength = <1>;
-					fsl,pull-up = <0>;
-				};
-				mmc0_4bit_pins_wt: mmc0-4bit-wt@0 {
-					reg = <0>;
-					fsl,pinmux-ids = <
-						0x2000 /* MX28_PAD_SSP0_DATA0__SSP0_D0 */
-						0x2010 /* MX28_PAD_SSP0_DATA1__SSP0_D1 */
-						0x2020 /* MX28_PAD_SSP0_DATA2__SSP0_D2 */
-						0x2030 /* MX28_PAD_SSP0_DATA3__SSP0_D3 */
-						0x2080 /* MX28_PAD_SSP0_CMD__SSP0_CMD */
-						0x20a0 /* MX28_PAD_SSP0_SCK__SSP0_SCK */
-					>;
-					fsl,drive-strength = <1>;
-					fsl,voltage = <1>;
-					fsl,pull-up = <1>;
-				};
-
-				gpmi_pins_wt: gpmi-nand-wt@0 {
-					reg = <0>;
-					fsl,pinmux-ids = <
-						0x0110 /* MX28_PAD_GPMI_CE1N__GPMI_CE1N */
-						0x0150 /* MX28_PAD_GPMI_RDY1__GPMI_READY1 */
-					>;
-					fsl,drive-strength = <0>;
-					fsl,voltage = <1>;
 					fsl,pull-up = <0>;
 				};
 
@@ -212,12 +174,6 @@
 					reg = <0x29>;
 				};
 
-				/*hym8653_0: rtc@51 {
-					compatible = "haoyu,hym8653";
-					clkout = <1>;
-					reg = <0x51>;
-				};*/
-
 				tca6416: gpio@20 {
 					compatible = "ti,tca6416";
 					//interrupt-parent = <&gpio0>;
@@ -235,16 +191,6 @@
 				pinctrl-0 = <&i2c1_pins_a>;
 				status = "okay";
 
-				/*hym8653_1: rtc@51 {
-					compatible = "haoyu,hym8653";
-					clkout = <0>;
-					reg = <0x51>;
-				};*/
-
-				mma8653: threeaxis@1d {
-					compatible = "fsl,mma8563";
-					reg = <0x1d>;
-				};
 			};
 
 			auart0: serial@8006a000 {
@@ -395,36 +341,6 @@
 			regulator-always-on;
 		};*/
 
-		reg_wifi_pwr: wifi_pwr {
-			compatible = "regulator-fixed";
-			regulator-name = "wifi_pwr";
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			gpio = <&tca6416 5 1>;
-			enable-active-low;
-			regulator-boot-on;
-			regulator-always-on;
-		};
-	};
-
-	spi2 {
-		compatible = "spi-gpio";
-		status = "okay";
-		gpio-sck = <&gpio2 7 0>;
-		gpio-mosi = <&gpio2 6 0>;
-		gpio-miso = <&gpio2 4 0>;
-		cs-gpios = <&gpio2 5 0>;
-		num-chipselects = <1>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-		mmc-slot@0 {
-			compatible = "mmc-spi-slot";
-			reg = <0>;
-			pwr_gios = <&gpio1 5 1>; /* low active */
-			/* gpios = <&gpio1 22 1>; */ /* gpio_1_22 low-active */
-			voltage-ranges = <3200 3400>;
-			spi-max-frequency = <25000000>;
-		};
 	};
 
 	wd_max6746 {
@@ -435,25 +351,6 @@
 		timeout = <5>;
 		feedcount = <25>;
 	};
-
-	ap6212_bluetooth {
-		compatible = "ampak,ap6212-blue";
-		blue_pwron_gpio = <&tca6416 4 0>; /* tca6416 io-04, active-high */
-	};
-
-	/* modems {
-		compatible = "quectel,gsm-ug95-m95";
-		gsm_pwrkey_gpio     = <&gpio3 27 0>;*/   /* gpio_3_27,     active-high */
-		/*gsm_sim2_gpio       = <&tca6416 10 0>;*/ /* tca6416 io-10, active-high (low:sim1 high:sim2) */
-		/*gsm_pwrdown_gpio    = <&tca6416 11 0>;*/ /* tca6416 io-11, active-high */
-		/*gsm_reset_gpio      = <&tca6416 12 0>;*/ /* tca6416 io-12, active-high */
-	/*};*/
-
-	/*gps {
-		compatible = "quectel,gps-l70";
-		gps_standby_gpio = <&tca6416 8 1>;*/ /* tca6416 io-8, active-low */
-		/*gps_reset_gpio   = <&tca6416 7 1>;*/ /* tca6416 io-7, active-low */
-	/*};*/
 
 };
 
