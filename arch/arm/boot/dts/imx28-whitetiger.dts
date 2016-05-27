@@ -173,7 +173,7 @@
 				};
 			};
 
-			can0: can@80032000 {
+			/*can0: can@80032000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&can0_pins_a>;
 				xceiver-supply = <&reg_can0_3v3>;
@@ -185,7 +185,7 @@
 				pinctrl-0 = <&can1_pins_a>;
 				xceiver-supply = <&reg_can1_3v3>;
 				status = "okay";
-			};
+			};*/
 		};
 
 		apbx@80040000 {
@@ -207,10 +207,10 @@
 				pinctrl-0 = <&i2c0_pins_a>;
 				status = "okay";
 
-				at97sc3205t: tpm@29 {
+				/* at97sc3205t: tpm@29 {
 					compatible = "atmel,at97sc3204t";
 					reg = <0x29>;
-				};
+				}; */
 
 				/*hym8653_0: rtc@51 {
 					compatible = "haoyu,hym8653";
@@ -230,22 +230,21 @@
 				};
 			};
 
-			i2c1: i2c@8005a000 {
+			/* i2c1: i2c@8005a000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&i2c1_pins_a>;
 				status = "okay";
 
-				/*hym8653_1: rtc@51 {
+				hym8653_1: rtc@51 {
 					compatible = "haoyu,hym8653";
 					clkout = <0>;
 					reg = <0x51>;
-				};*/
-
+				};
 				mma8653: threeaxis@1d {
 					compatible = "fsl,mma8563";
 					reg = <0x1d>;
-				};
-			};
+				}; 
+			}; */
 
 			auart0: serial@8006a000 {
 				status = "okay";
@@ -348,7 +347,7 @@
 			gpio = <&gpio0 26 1>;
 		};
 
-		reg_can0_3v3: can0-3v3 {
+		/* reg_can0_3v3: can0-3v3 {
 			compatible = "regulator-fixed";
 			regulator-name = "can0-3v3";
 			regulator-min-microvolt = <3300000>;
@@ -364,7 +363,7 @@
 			regulator-max-microvolt = <3300000>;
 			gpio = <&gpio0 27 0>;
 			enable-active-high;
-		};
+		}; */
 
 		reg_usb0_vbus: usb0_vbus {
 			compatible = "regulator-fixed";
@@ -407,7 +406,7 @@
 		};
 	};
 
-	spi2 {
+	/* spi2 {
 		compatible = "spi-gpio";
 		status = "okay";
 		gpio-sck = <&gpio2 7 0>;
@@ -420,21 +419,21 @@
 		mmc-slot@0 {
 			compatible = "mmc-spi-slot";
 			reg = <0>;
-			pwr_gios = <&gpio1 5 1>; /* low active */
-			/* gpios = <&gpio1 22 1>; */ /* gpio_1_22 low-active */
+			pwr_gios = <&gpio1 5 1>;
+			gpios = <&gpio1 22 1>;
 			voltage-ranges = <3200 3400>;
 			spi-max-frequency = <25000000>;
 		};
-	};
+	}; */
 
-	wd_max6746 {
+	/* wd_max6746 {
 		compatible = "maxsim,max6746";
 		status = "okay";
-		enable-gpios = <&gpio1 23 1>; /* gpio_1_23, low active */
-		feed-gpios = <&gpio1 0 1>; /* gpio_1_0, active leve ignored */
+		enable-gpios = <&gpio1 23 1>;
+		feed-gpios = <&gpio1 0 1>;
 		timeout = <5>;
 		feedcount = <25>;
-	};
+	}; */
 
 	ap6212_bluetooth {
 		compatible = "ampak,ap6212-blue";
