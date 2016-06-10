@@ -22,22 +22,6 @@
 
 	apb@80000000 {
 		apbh@80000000 {
-			/*gpmi-nand@8000c000 {
-				pinctrl-names = "default";
-				pinctrl-0 = <&gpmi_pins_a &gpmi_status_cfg
-					     &gpmi_pins_wt>;
-				status = "okay";
-				partition@0 {
-					label = "gpmi-nfc-0-boot";
-					reg = <0x00000000 0x01400000>;
-					read-only;
-				};
-				partition@1 {
-					label = "gpmi-nfc-general-use";
-					reg = <0x01400000 0x0EC00000>;
-				};
-			};*/
-
 			ssp0: ssp@80010000 {
 				compatible = "fsl,imx28-mmc";
 				pinctrl-names = "default";
@@ -45,7 +29,6 @@
 					&mmc0_sck_cfg>;
 				bus-width = <4>;
 				status = "okay";
-				is_bcmdhd;
 			};
 
 			ssp1: ssp@80012000 {
@@ -54,20 +37,10 @@
 				pinctrl-0 = <&mmc1_8bit_pins_a
 					&mmc1_sck_cfg>;
 				bus-width = <8>;
-				//wp-gpios = <&gpio0 28 0>;
 				mmc-reset-gpios = <&gpio0 28 1>;
 				mmc-reset-duration = <5>;
 				status = "okay";
 			};
-
-			/*ssp2: ssp@80014000 {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				compatible = "fsl,imx28-spi";
-				pinctrl-names = "default";
-				pinctrl-0 = <&spi2_pins_a>;
-				status = "okay";
-			};*/
 
 			pinctrl@80018000 {
 				pinctrl-names = "default";
@@ -173,19 +146,6 @@
 				};
 			};
 
-			can0: can@80032000 {
-				pinctrl-names = "default";
-				pinctrl-0 = <&can0_pins_a>;
-				xceiver-supply = <&reg_can0_3v3>;
-				status = "okay";
-			};
-
-			can1: can@80034000 {
-				pinctrl-names = "default";
-				pinctrl-0 = <&can1_pins_a>;
-				xceiver-supply = <&reg_can1_3v3>;
-				status = "okay";
-			};
 		};
 
 		apbx@80040000 {
@@ -207,16 +167,11 @@
 				pinctrl-0 = <&i2c0_pins_a>;
 				status = "okay";
 
-				at97sc3205t: tpm@29 {
-					compatible = "atmel,at97sc3204t";
-					reg = <0x29>;
-				};
-
-				/*hym8653_0: rtc@51 {
+				hym8653_0: rtc@51 {
 					compatible = "haoyu,hym8653";
-					clkout = <1>;
+					clkout = <0>;
 					reg = <0x51>;
-				};*/
+				};
 
 				tca6416: gpio@20 {
 					compatible = "ti,tca6416";
@@ -235,16 +190,12 @@
 				pinctrl-0 = <&i2c1_pins_a>;
 				status = "okay";
 
-				/*hym8653_1: rtc@51 {
+				hym8653_1: rtc@51 {
 					compatible = "haoyu,hym8653";
 					clkout = <0>;
 					reg = <0x51>;
-				};*/
-
-				mma8653: threeaxis@1d {
-					compatible = "fsl,mma8563";
-					reg = <0x1d>;
 				};
+
 			};
 
 			auart0: serial@8006a000 {
@@ -331,15 +282,6 @@
 	regulators {
 		compatible = "simple-bus";
 
-		/*reg_ext_3v3: ext-3v3 {
-			compatible = "regulator-fixed";
-			regulator-name = "ext-3v3";
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			gpio = <&gpio4 14 0>;
-			enable-active-high;
-		};*/
-
 		reg_fec_3v3: fec-3v3 {
 			compatible = "regulator-fixed";
 			regulator-name = "fec-3v3";
@@ -384,76 +326,7 @@
 			enable-active-high;
 		};
 
-		/*reg_rdioboard_batgsm: radioboard_bat {
-			compatible = "regulator-fixed";
-			regulator-name = "radioboard_bat";
-			regulator-min-microvolt = <4000000>;
-			regulator-max-microvolt = <4000000>;
-			gpio = <&gpio3 28 0>;
-			enable-active-high;
-			regulator-boot-on;
-			regulator-always-on;
-		};*/
-
-		reg_wifi_pwr: wifi_pwr {
-			compatible = "regulator-fixed";
-			regulator-name = "wifi_pwr";
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			gpio = <&tca6416 5 1>;
-			enable-active-low;
-			regulator-boot-on;
-			regulator-always-on;
-		};
 	};
-
-	spi2 {
-		compatible = "spi-gpio";
-		status = "okay";
-		gpio-sck = <&gpio2 7 0>;
-		gpio-mosi = <&gpio2 6 0>;
-		gpio-miso = <&gpio2 4 0>;
-		cs-gpios = <&gpio2 5 0>;
-		num-chipselects = <1>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-		mmc-slot@0 {
-			compatible = "mmc-spi-slot";
-			reg = <0>;
-			pwr_gios = <&gpio1 5 1>; /* low active */
-			/* gpios = <&gpio1 22 1>; */ /* gpio_1_22 low-active */
-			voltage-ranges = <3200 3400>;
-			spi-max-frequency = <25000000>;
-		};
-	};
-
-	wd_max6746 {
-		compatible = "maxsim,max6746";
-		status = "okay";
-		enable-gpios = <&gpio1 23 1>; /* gpio_1_23, low active */
-		feed-gpios = <&gpio1 0 1>; /* gpio_1_0, active leve ignored */
-		timeout = <5>;
-		feedcount = <25>;
-	};
-
-	ap6212_bluetooth {
-		compatible = "ampak,ap6212-blue";
-		blue_pwron_gpio = <&tca6416 4 0>; /* tca6416 io-04, active-high */
-	};
-
-	/* modems {
-		compatible = "quectel,gsm-ug95-m95";
-		gsm_pwrkey_gpio     = <&gpio3 27 0>;*/   /* gpio_3_27,     active-high */
-		/*gsm_sim2_gpio       = <&tca6416 10 0>;*/ /* tca6416 io-10, active-high (low:sim1 high:sim2) */
-		/*gsm_pwrdown_gpio    = <&tca6416 11 0>;*/ /* tca6416 io-11, active-high */
-		/*gsm_reset_gpio      = <&tca6416 12 0>;*/ /* tca6416 io-12, active-high */
-	/*};*/
-
-	/*gps {
-		compatible = "quectel,gps-l70";
-		gps_standby_gpio = <&tca6416 8 1>;*/ /* tca6416 io-8, active-low */
-		/*gps_reset_gpio   = <&tca6416 7 1>;*/ /* tca6416 io-7, active-low */
-	/*};*/
 
 };
 
