@@ -79,6 +79,8 @@ void __iomem *mxs_pinctrl_base;
 
 extern void (*pm_power_off)(void);
 
+EXPORT_SYMBOL(mxs_lradc_base);
+
 void mxs_pm_power_off(void)
 {
 	/* turn off vbat_gsm, gpio_3_28 output 0 */
@@ -373,7 +375,13 @@ static int mxs_bat_init_regs(struct platform_device *pdev)
 	//np = of_find_compatible_node(NULL, NULL, "fsl,imx28-digctl"); mxs_digctl_base = of_iomap(np, 0);
 	np = of_find_compatible_node(NULL, NULL, "fsl,imx28-pinctrl"); mxs_pinctrl_base = of_iomap(np, 0);
 	np = of_find_compatible_node(NULL, NULL, "fsl,stmp3xxx-rtc");  mxs_rtc_base     = of_iomap(np, 0);
-	np = of_find_compatible_node(NULL, NULL, "fsl,imx28-lradc");   mxs_lradc_base   = of_iomap(np, 0);
+
+	if (0 == mxs_lradc_base) {
+		printk("battery: unbeliveable, lradc driver hasn't init base addrs!\n");
+		np = of_find_compatible_node(NULL, NULL, "fsl,imx28-lradc");   mxs_lradc_base   = of_iomap(np, 0);
+	} else {
+		printk("battery: yes it is, lradc driver has inited base addrs!\n");
+	}
 
 	IRQ_BATT_BRNOUT    = platform_get_irq_byname(pdev, "batt_bo");
 	IRQ_VDDD_BRNOUT    = platform_get_irq_byname(pdev, "vddd_bo");
@@ -516,11 +524,8 @@ static struct mxs_info *mxs_bat_init_info(struct platform_device *pdev)
 		return NULL;
 
 	if (IS_ERR(info->lradc_clk =  clk_get(&pdev->dev, NULL))) {
-		printk("%s: failed to get lradc clock!\n", __FUNCTION__);
-		return NULL;
-	}
-
-	if (clk_prepare_enable(info->lradc_clk)) {
+		info->lradc_clk = NULL;
+	} else if (clk_prepare_enable(info->lradc_clk)) {
 		printk("%s: failed to enable lradc clock!\n", __FUNCTION__);
 		clk_put(info->lradc_clk);
 		kfree(info);
@@ -605,8 +610,10 @@ unregister_bat:
 
 free_info:
 	mxs_free_irqs(pdev);
-	clk_disable_unprepare(info->lradc_clk);
-	clk_put(info->lradc_clk);
+	if (info->lradc_clk) {
+		clk_disable_unprepare(info->lradc_clk);
+		clk_put(info->lradc_clk);
+	}
 	platform_set_drvdata(pdev, NULL);
 	kfree(info);
 	return ret;

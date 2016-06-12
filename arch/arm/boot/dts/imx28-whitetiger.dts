@@ -162,6 +162,12 @@
 					"vdda_bo", "vdd5v_droop", "dcdc4p2_bo", "vdd5v";
 			};
 			
+			lradc: lradc@80050000 {
+				status = "okay";
+				clocks = <&clks 41>; /* lradc clock */
+				hwpins = <0x3c>; /* 0b_0011_1100, chan2,3,4,5 */
+			};
+
 			i2c0: i2c@80058000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&i2c0_pins_a>;

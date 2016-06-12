@@ -4,6 +4,11 @@
 
 menu "Misc devices"
 
+config IMX28_LRADC
+	tristate "imx28-lradc"
+	help
+	 Support imx28 lradc.
+	
 config L70_GPS
 	tristate "Quectel L70 GPS"
 	help
