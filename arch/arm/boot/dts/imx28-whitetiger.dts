@@ -97,17 +97,6 @@
 					fsl,pull-up = <1>;
 				};
 
-				gpmi_pins_wt: gpmi-nand-wt@0 {
-					reg = <0>;
-					fsl,pinmux-ids = <
-						0x0110 /* MX28_PAD_GPMI_CE1N__GPMI_CE1N */
-						0x0150 /* MX28_PAD_GPMI_RDY1__GPMI_READY1 */
-					>;
-					fsl,drive-strength = <0>;
-					fsl,voltage = <1>;
-					fsl,pull-up = <0>;
-				};
-
 				autra0duart_pins: autra0duart@0 {
 					reg = <0>;
 					fsl,pinmux-ids = <
@@ -115,19 +104,6 @@
 						0x3010 /* MX28_PAD_AUART0_TX__AUART0_TX */
 						0x3022 /* MX28_PAD_AUART0_CTS__DUART_RX */
 						0x3032 /* MX28_PAD_AUART0_RTS__DUART_TX */
-					>;
-					fsl,drive-strength = <0>;
-					fsl,voltage = <1>;
-					fsl,pull-up = <0>;
-				};
-
-				auart4_pins_wt: auart4-wt@0 {
-					reg = <0>;
-					fsl,pinmux-ids = <
-						0x3142 /* MX28_PAD_SAIF0_MCLK__AUART4_CTS */
-						0x3152 /* MX28_PAD_SAIF0_LRCLK__AUART4_RTS */
-						0x3162 /* MX28_PAD_SAIF0_BITCLK__AUART4_RX */
-						0x3172 /* MX28_PAD_SAIF0_SDATA0__AUART4_TX */
 					>;
 					fsl,drive-strength = <0>;
 					fsl,voltage = <1>;
@@ -228,13 +204,6 @@
 				status = "okay";
 			};
 
-			auart4: serial@80072000 {
-				pinctrl-names = "default";
-				pinctrl-0 = <&auart4_pins_wt>;
-				fsl,uart-has-rtscts;
-				status = "okay";
-			};
-
 			duart: serial@80074000 {
 				pinctrl-names = "default", "off-mode";
 				/*pinctrl-names = "default";*/
@@ -294,24 +263,6 @@
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
 			gpio = <&gpio0 26 1>;
-		};
-
-		reg_can0_3v3: can0-3v3 {
-			compatible = "regulator-fixed";
-			regulator-name = "can0-3v3";
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			gpio = <&gpio4 9 0>;
-			enable-active-high;
-		};
-
-		reg_can1_3v3: can1-3v3 {
-			compatible = "regulator-fixed";
-			regulator-name = "can1-3v3";
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			gpio = <&gpio0 27 0>;
-			enable-active-high;
 		};
 
 		reg_usb0_vbus: usb0_vbus {
