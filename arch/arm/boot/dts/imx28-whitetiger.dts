@@ -205,10 +205,9 @@
 			};
 
 			duart: serial@80074000 {
-				pinctrl-names = "default", "off-mode";
+				pinctrl-names = "default";
 				/*pinctrl-names = "default";*/
 				pinctrl-0 = <&autra0duart_pins>; /* duart-2line   auart0-2line */
-				pinctrl-1 = <&auart0_pins_a>;    /* duart-disable auart0-4line */
 				switch-gpios = <&gpio1 25 1>;    /* bank-1 pin-25, low: duart-2line */
 				status = "okay";
 			};
