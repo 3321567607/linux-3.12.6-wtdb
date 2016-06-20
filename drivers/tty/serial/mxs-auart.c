@@ -189,6 +189,7 @@ static void mxs_auart_rxoff(struct mxs_auart_port *s)
 	if ((HALF_DUPLEX_485 == halfduplex) && (s->halfdup_rxoff_gpio > 0)) {
 		//gpio_request(s->halfdup_rxoff_gpio, "halfduplex_rxoff");
 		gpio_direction_output(s->halfdup_rxoff_gpio, s->halfdup_rxoff_level);
+		mdelay(100);
 		//gpio_free(s->halfdup_rxoff_gpio);
 	}
 }
