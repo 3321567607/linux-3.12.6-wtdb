@@ -929,6 +929,7 @@ CONFIG_BLK_DEV=y
 #
 # Misc devices
 #
+CONFIG_IMX28_LRADC=y
 # CONFIG_L70_GPS is not set
 # CONFIG_UG95 is not set
 CONFIG_AP6212_BLUE_SWITCH=y
