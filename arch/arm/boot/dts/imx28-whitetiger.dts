@@ -13,8 +13,8 @@
 /include/ "imx28.dtsi"
 
 / {
-	model = "matt-bthub";
-	compatible = "intelgine,whitetiger", "fsl,imx28";
+	model = "intlkitchen";
+	compatible = "intelgine,kitchen", "fsl,imx28";
 
 	memory {
 		reg = <0x40000000 0x50000000>;
