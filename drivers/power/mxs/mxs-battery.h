@@ -115,9 +115,9 @@ enum MXS_IRQ_EVENT {
 #define TO_CHARGING   14400000
 
 #define WR_PWR_REG(reg,val)   __raw_writel((val), mxs_pwr_base +   (reg))
-#define WR_LRADC_REG(reg,val) __raw_writel((val), mxs_lradc_base + (reg))
+#define WR_LRADC_REG(reg,val) writel((val), mxs_lradc_base + (reg))
 #define RD_PWR_REG(reg)       __raw_readl(mxs_pwr_base +   (reg))
-#define RD_LRADC_REG(reg)     __raw_readl(mxs_lradc_base + (reg))
+#define RD_LRADC_REG(reg)     readl(mxs_lradc_base + (reg))
 
 #define CLR_PWR_REG_BITS(reg,clr) WR_PWR_REG((reg),(RD_PWR_REG(reg) & (~(clr))))
 #define SET_PWR_REG_BITS(reg,set) WR_PWR_REG((reg),(RD_PWR_REG(reg) | (set)))

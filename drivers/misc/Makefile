@@ -3,6 +3,7 @@
 #
 
 obj-$(CONFIG_IBM_ASM)		+= ibmasm/
+obj-$(CONFIG_IMX28_LRADC)	+= imx28_lradc.o
 obj-$(CONFIG_L70_GPS)		+= l70_gps.o
 obj-$(CONFIG_UG95)		+= ug95.o
 obj-$(CONFIG_AP6212_BLUE_SWITCH) += ap6212_blue_switch.o
