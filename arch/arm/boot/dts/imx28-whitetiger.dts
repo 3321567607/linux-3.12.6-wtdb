@@ -445,6 +445,12 @@
 		blue_pwron_gpio = <&tca6416 4 0>; /* tca6416 io-04, active-high */
 	};
 
+	db114 {
+		compatible = "dabeco,db114";
+		sck_gpio = <&gpio1 13 0>;
+		sda_gpio = <&gpio1 15 0>;
+	};
+
 	/* modems {
 		compatible = "quectel,gsm-ug95-m95";
 		gsm_pwrkey_gpio     = <&gpio3 27 0>;*/   /* gpio_3_27,     active-high */

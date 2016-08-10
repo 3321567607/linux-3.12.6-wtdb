@@ -24,6 +24,11 @@ config AP6212_BLUE_SWITCH
 	help
 	 Switch on/off Ampak AP6212 bluetooth module.
 	
+config DB114
+	tristate "DABECO DB114 humility and temperature sensor"
+	help
+	 DABECO DB114 humility and temperature sensor.
+	
 config SENSORS_LIS3LV02D
 	tristate
 	depends on INPUT

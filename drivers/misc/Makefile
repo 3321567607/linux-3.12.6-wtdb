@@ -7,6 +7,7 @@ obj-$(CONFIG_IMX28_LRADC)	+= imx28_lradc.o
 obj-$(CONFIG_L70_GPS)		+= l70_gps.o
 obj-$(CONFIG_UG95)		+= ug95.o
 obj-$(CONFIG_AP6212_BLUE_SWITCH) += ap6212_blue_switch.o
+obj-$(CONFIG_DB114)		+= db114.o
 obj-$(CONFIG_AD525X_DPOT)	+= ad525x_dpot.o
 obj-$(CONFIG_AD525X_DPOT_I2C)	+= ad525x_dpot-i2c.o
 obj-$(CONFIG_AD525X_DPOT_SPI)	+= ad525x_dpot-spi.o
