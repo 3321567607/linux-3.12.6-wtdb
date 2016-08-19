@@ -447,8 +447,8 @@
 
 	db114 {
 		compatible = "dabeco,db114";
-		sck_gpio = <&gpio1 13 0>;
-		sda_gpio = <&gpio1 15 0>;
+		sck_gpio = <&gpio1 0 0>;
+		sda_gpio = <&gpio1 2 0>;
 	};
 
 	/* modems {
