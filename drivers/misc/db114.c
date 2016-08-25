@@ -321,7 +321,7 @@ static int db114_kthread(void *par)
 		tmp_val &= 0x3FFF; /* 14-bit temperature */
 
 		if (error != 0) {
-			printk("failed to read humidity!\n");
+			// printk("failed to read humidity!\n");
 			s_connectionreset(pinfo);                 //in case of an error: connection reset
 		} else {
 			pinfo->value = (tmp_val << 16) | hum_val;
