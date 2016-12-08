@@ -13,7 +13,7 @@
 /include/ "imx28.dtsi"
 
 / {
-	model = "matt-bthub";
+	model = "bthub";
 	compatible = "intelgine,whitetiger", "fsl,imx28";
 
 	memory {
