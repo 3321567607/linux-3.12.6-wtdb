@@ -201,6 +201,10 @@
 				interrupt-names = "batt_bo", "vddd_bo", "vddio_bo",
 					"vdda_bo", "vdd5v_droop", "dcdc4p2_bo", "vdd5v";
 			};
+
+            mxs_rtc: rtc@80056000 {
+                status = "okay";
+            };
 			
 			i2c0: i2c@80058000 {
 				pinctrl-names = "default";
