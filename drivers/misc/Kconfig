@@ -4,6 +4,16 @@
 
 menu "Misc devices"
 
+config SH1106_SCREEN
+	tristate "sh1106 screen"
+	help
+	 sh1106 screen support
+	
+config MXS_PWM_IN
+	tristate "MXS pwm input"
+	help
+	 Support mxs pwm input.
+	
 config L70_GPS
 	tristate "Quectel L70 GPS"
 	help
