@@ -22,22 +22,6 @@
 
 	apb@80000000 {
 		apbh@80000000 {
-			/*gpmi-nand@8000c000 {
-				pinctrl-names = "default";
-				pinctrl-0 = <&gpmi_pins_a &gpmi_status_cfg
-					     &gpmi_pins_wt>;
-				status = "okay";
-				partition@0 {
-					label = "gpmi-nfc-0-boot";
-					reg = <0x00000000 0x01400000>;
-					read-only;
-				};
-				partition@1 {
-					label = "gpmi-nfc-general-use";
-					reg = <0x01400000 0x0EC00000>;
-				};
-			};*/
-
 			ssp0: ssp@80010000 {
 				compatible = "fsl,imx28-mmc";
 				pinctrl-names = "default";
@@ -45,7 +29,6 @@
 					&mmc0_sck_cfg>;
 				bus-width = <4>;
 				status = "okay";
-				is_bcmdhd;
 			};
 
 			ssp1: ssp@80012000 {
@@ -54,20 +37,10 @@
 				pinctrl-0 = <&mmc1_8bit_pins_a
 					&mmc1_sck_cfg>;
 				bus-width = <8>;
-				//wp-gpios = <&gpio0 28 0>;
 				mmc-reset-gpios = <&gpio0 28 1>;
 				mmc-reset-duration = <5>;
 				status = "okay";
 			};
-
-			/*ssp2: ssp@80014000 {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				compatible = "fsl,imx28-spi";
-				pinctrl-names = "default";
-				pinctrl-0 = <&spi2_pins_a>;
-				status = "okay";
-			};*/
 
 			pinctrl@80018000 {
 				pinctrl-names = "default";
@@ -84,12 +57,25 @@
 					fsl,pull-up = <0>;
 				};
 
+        /*                pwm0        dir0       but0        pwm1        dir1       but1        pwm2        dir2       but2        flyswitch  button        */
+        /* pwmin-gpios = <&gpio3 18   &gpio4 4   &gpio1 14   &gpio3 28   &gpio4 6   &gpio1 13   &gpio3 29   &gpio4 7   &gpio1 12   &gpio4 3   &gpio1 15  >; */
 				pwm_in_pins: pwm-in@0 {
 					reg = <0>;
 					fsl,pinmux-ids = <
-						0x3123 /* MX28_PAD_PWM2__GPIO_3_18, PWM2 */
-						0x31c3 /* MX28_PAD_PWM3__GPIO_3_28, PWM3 */
-						0x31d3 /* MX28_PAD_PWM4__GPIO_3_29, PWM4 */
+						0x3123 /* GPIO_3_18, PWM2 */
+                        0x4043 /* GPIO_4_4,  DIR2 */
+                        0x10e3 /* GPIO_1_14, BUT2 */
+
+						0x31c3 /* GPIO_3_28, PWM3 */
+                        0x4063 /* GPIO_4_6,  DIR3 */
+                        0x10d3 /* GPIO_1_13, BUT3 */
+
+						0x31d3 /* GPIO_3_29, PWM4 */
+                        0x4073 /* GPIO_4_7,  DIR4 */
+                        0x10c3 /* GPIO_1_12, BUT4 */
+
+                        0x4033 /* GPIO_4_3,  fly-switch */
+                        0x10f3 /* GPIO_1_15, FUNCTION BUTTON */
 					>;
 					fsl,drive-strength = <3>;
 					fsl,voltage = <1>;
@@ -136,11 +122,10 @@
 					fsl,pull-up = <1>;
 				};
 
-				gpmi_pins_wt: gpmi-nand-wt@0 {
+				pwm1_pins_a: pwm1@0 {
 					reg = <0>;
 					fsl,pinmux-ids = <
-						0x0110 /* MX28_PAD_GPMI_CE1N__GPMI_CE1N */
-						0x0150 /* MX28_PAD_GPMI_RDY1__GPMI_READY1 */
+						0x3110 /* MX28_PAD_PWM1__PWM_1 */
 					>;
 					fsl,drive-strength = <0>;
 					fsl,voltage = <1>;
@@ -160,50 +145,11 @@
 					fsl,pull-up = <0>;
 				};
 
-				auart4_pins_wt: auart4-wt@0 {
-					reg = <0>;
-					fsl,pinmux-ids = <
-						0x3142 /* MX28_PAD_SAIF0_MCLK__AUART4_CTS */
-						0x3152 /* MX28_PAD_SAIF0_LRCLK__AUART4_RTS */
-						0x3162 /* MX28_PAD_SAIF0_BITCLK__AUART4_RX */
-						0x3172 /* MX28_PAD_SAIF0_SDATA0__AUART4_TX */
-					>;
-					fsl,drive-strength = <0>;
-					fsl,voltage = <1>;
-					fsl,pull-up = <0>;
-				};
-
-				usb0_otg_pins_a: otg-wt@0 {
-					reg = <0>;
-					fsl,pinmux-ids = <
-						0x2152 /* MX28_PAD_SSP2_SS2__USB0_OVERCURRENT */
-						/* 0x3121 MX28_PAD_PWM2__USB0_ID */
-					>;
-					fsl,drive-strength = <2>;
-					fsl,voltage = <1>;
-					fsl,pull-up = <0>;
-				};
 			};
 
-			/*can0: can@80032000 {
-				pinctrl-names = "default";
-				pinctrl-0 = <&can0_pins_a>;
-				xceiver-supply = <&reg_can0_3v3>;
-				status = "okay";
-			};
-
-			can1: can@80034000 {
-				pinctrl-names = "default";
-				pinctrl-0 = <&can1_pins_a>;
-				xceiver-supply = <&reg_can1_3v3>;
-				status = "okay";
-			};*/
 		};
 
 		apbx@80040000 {
-			lradc@80050000 {
-				status = "okay";
-			};
 
 			power: power@80044000 {
 				compatible = "fsl,imx28-power";
@@ -232,17 +178,6 @@
                     lcden-gpios  = <&gpio1 25 1>; /* low active */
                 };
 
-				/* at97sc3205t: tpm@29 {
-					compatible = "atmel,at97sc3204t";
-					reg = <0x29>;
-				}; */
-
-				/* hym8653_0: rtc@51 {
-					compatible = "haoyu,hym8653";
-					clkout = <1>;
-					reg = <0x51>;
-				}; */
-
 				tca6416: gpio@20 {
 					compatible = "ti,tca6416";
 					//interrupt-parent = <&gpio0>;
@@ -255,52 +190,11 @@
 				};
 			};
 
-			/* i2c1: i2c@8005a000 {
+			pwm: pwm@80064000 {
 				pinctrl-names = "default";
-				pinctrl-0 = <&i2c1_pins_a>;
-				status = "okay";
-
-				hym8653_1: rtc@51 {
-					compatible = "haoyu,hym8653";
-					clkout = <0>;
-					reg = <0x51>;
-				};
-				mma8653: threeaxis@1d {
-					compatible = "fsl,mma8563";
-					reg = <0x1d>;
-				}; 
-			}; */
-
-			/*auart0: serial@8006a000 {
+				pinctrl-0 = <&pwm1_pins_a>;
 				status = "okay";
 			};
-
-			auart1: serial@8006c000 {
-				pinctrl-names = "default";
-				pinctrl-0 = <&auart1_2pins_a>;
-				halfdup-enable-gpio = <&gpio4 15 0>;	// high: enable half-duplex
-				halfdup-rxoff-gpio = <&gpio4 10 0>;		// high: turn off rx while txing
-				status = "okay";
-			};
-
-			auart2: serial@8006e000 {
-				pinctrl-names = "default";
-				pinctrl-0 = <&auart2_2pins_a>;
-				status = "okay";
-			};
-
-			auart3: serial@80070000 {
-				pinctrl-names = "default";
-				pinctrl-0 = <&auart3_2pins_a>;
-				status = "okay";
-			};
-
-			auart4: serial@80072000 {
-				pinctrl-names = "default";
-				pinctrl-0 = <&auart4_pins_wt>;
-				fsl,uart-has-rtscts;
-				status = "okay";
-			};*/
 
 			duart: serial@80074000 {
 				pinctrl-names = "default", "off-mode";
@@ -311,9 +205,6 @@
 				status = "okay";
 			};
 
-			/* usbphy0: usbphy@8007c000 {
-				status = "okay";
-			}; */
 
 			usbphy1: usbphy@8007e000 {
 				status = "okay";
@@ -322,15 +213,6 @@
 	};
 
 	ahb@80080000 {
-		/*usb0: usb@80080000 {
-			status = "okay";
-			dr_mode = "otg";
-			// dr_mode = "peripheral";
-			phy_type = "utmi";
-			vbus-supply = <&reg_usb0_vbus>;
-				pinctrl-names = "default";
-				pinctrl-0 = <&usb0_otg_pins_a>;
-		};*/
 
 		usb1: usb@80090000 {
 			status = "okay";
@@ -341,63 +223,9 @@
 			pinctrl-0 = <&usbphy1_pins_a>;
 		};
 
-		mac0: ethernet@800f0000 {
-			phy-mode = "rmii";
-			pinctrl-names = "default";
-			pinctrl-0 = <&mac0_pins_a>;
-			phy-supply = <&reg_fec_3v3>;
-			phy-reset-gpios = <&gpio4 13 0>;
-			phy-reset-duration = <100>;
-			status = "okay";
-		};
-
 	};
 	regulators {
 		compatible = "simple-bus";
-
-		/*reg_ext_3v3: ext-3v3 {
-			compatible = "regulator-fixed";
-			regulator-name = "ext-3v3";
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			gpio = <&gpio4 14 0>;
-			enable-active-high;
-		};*/
-
-		reg_fec_3v3: fec-3v3 {
-			compatible = "regulator-fixed";
-			regulator-name = "fec-3v3";
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			gpio = <&gpio0 26 1>;
-		};
-
-		/* reg_can0_3v3: can0-3v3 {
-			compatible = "regulator-fixed";
-			regulator-name = "can0-3v3";
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			gpio = <&gpio4 9 0>;
-			enable-active-high;
-		};
-
-		reg_can1_3v3: can1-3v3 {
-			compatible = "regulator-fixed";
-			regulator-name = "can1-3v3";
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			gpio = <&gpio0 27 0>;
-			enable-active-high;
-		}; */
-
-		/* reg_usb0_vbus: usb0_vbus {
-			compatible = "regulator-fixed";
-			regulator-name = "usb0_vbus";
-			regulator-min-microvolt = <5000000>;
-			regulator-max-microvolt = <5000000>;
-			gpio = <&gpio4 12 0>;
-			enable-active-high;
-		}; */
 
 		reg_usb1_vbus: usb1_vbus {
 			compatible = "regulator-fixed";
@@ -407,90 +235,16 @@
 			gpio = <&gpio4 11 0>;
 			enable-active-high;
 		};
-
-		/*reg_rdioboard_batgsm: radioboard_bat {
-			compatible = "regulator-fixed";
-			regulator-name = "radioboard_bat";
-			regulator-min-microvolt = <4000000>;
-			regulator-max-microvolt = <4000000>;
-			gpio = <&gpio3 28 0>;
-			enable-active-high;
-			regulator-boot-on;
-			regulator-always-on;
-		};*/
-
-		/* reg_wifi_pwr: wifi_pwr {
-			compatible = "regulator-fixed";
-			regulator-name = "wifi_pwr";
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			gpio = <&tca6416 5 1>;
-			enable-active-low;
-			regulator-boot-on;
-			regulator-always-on;
-		}; */
 	};
 
-	/* spi2 {
-		compatible = "spi-gpio";
-		status = "okay";
-		gpio-sck = <&gpio2 7 0>;
-		gpio-mosi = <&gpio2 6 0>;
-		gpio-miso = <&gpio2 4 0>;
-		cs-gpios = <&gpio2 5 0>;
-		num-chipselects = <1>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-		mmc-slot@0 {
-			compatible = "mmc-spi-slot";
-			reg = <0>;
-			pwr_gios = <&gpio1 5 1>;
-			gpios = <&gpio1 22 1>;
-			voltage-ranges = <3200 3400>;
-			spi-max-frequency = <25000000>;
-		};
-	}; */
-
-	/* wd_max6746 {
-		compatible = "maxsim,max6746";
-		status = "okay";
-		enable-gpios = <&gpio1 23 1>;
-		feed-gpios = <&gpio1 0 1>;
-		timeout = <5>;
-		feedcount = <25>;
-	}; */
-
-	/* ap6212_bluetooth {
-		compatible = "ampak,ap6212-blue";
-		blue_pwron_gpio = <&tca6416 4 0>; // tca6416 io-04, active-high
-	}; */
 
 	pwm_in {
 		compatible = "fsl,pwm-in";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pwm_in_pins>;
-		pwm_in_gpio = <&gpio3 28 0>;
-                   /* pwm         direction    button  */
-        pwm2-gpios = <&gpio3 18 0 &gpio3 28 0 &gpio3 28 0>;
-        pwm3-gpios = <&gpio3 28 0 &gpio3 28 0 &gpio3 28 0>;
-        pwm4-gpios = <&gpio3 29 0 &gpio3 28 0 &gpio3 28 0>;
-		/* pinctrl-names = "default"; */
-		/* pinctrl-0 = <&pwm_in_pins>; */
+
+                    /* pwm0        dir0       but0        pwm1        dir1       but1        pwm2        dir2       but2        flyswitch  button*/
+        pwmin-gpios = <&gpio3 29 0 &gpio4 7 0 &gpio1 12 0 &gpio3 18 0 &gpio4 4 0 &gpio1 14 0 &gpio3 28 0 &gpio4 6 1 &gpio1 13 0 &gpio4 3 0 &gpio1 15 0>;
 	};
-
-	/* modems {
-		compatible = "quectel,gsm-ug95-m95";
-		gsm_pwrkey_gpio     = <&gpio3 27 0>;*/   /* gpio_3_27,     active-high */
-		/*gsm_sim2_gpio       = <&tca6416 10 0>;*/ /* tca6416 io-10, active-high (low:sim1 high:sim2) */
-		/*gsm_pwrdown_gpio    = <&tca6416 11 0>;*/ /* tca6416 io-11, active-high */
-		/*gsm_reset_gpio      = <&tca6416 12 0>;*/ /* tca6416 io-12, active-high */
-	/*};*/
-
-	/*gps {
-		compatible = "quectel,gps-l70";
-		gps_standby_gpio = <&tca6416 8 1>;*/ /* tca6416 io-8, active-low */
-		/*gps_reset_gpio   = <&tca6416 7 1>;*/ /* tca6416 io-7, active-low */
-	/*};*/
-
 };
 
