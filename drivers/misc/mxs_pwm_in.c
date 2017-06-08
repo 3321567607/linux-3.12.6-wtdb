@@ -29,7 +29,7 @@ extern u64 local_clock(void);
 #define PWMIN_OF_NAME "pwmin-gpios"
 
 /* period of polling gpios, usec */
-#define PWMIN_POLL_INTV 99
+#define PWMIN_POLL_INTV 990
 
 #define PWMIN_TOTAL_PINS     11
 #define PWMIN_MAX_EVENTS    10
@@ -367,6 +367,7 @@ static int mxs_pwm_thread_fn(void *arg)
         } else {
             sleepusec = 1;
         }
+        // sleepusec = PWMIN_POLL_INTV;
 
         PWMIN_USLEEP(sleepusec);
     }
