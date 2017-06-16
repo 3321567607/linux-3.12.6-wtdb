@@ -21,6 +21,7 @@
 #define SH1106_FBSIZE (SH1106_COL_NUM * SH1106_PAGE_NUM)
 
 #define SHIO_PANDISPLAY 0x3721
+#define SHIO_PAN2SCRN   0x3722
 
 struct sh1106_gpio {
 	int gpio;
@@ -42,6 +43,84 @@ struct sh1106_info {
     void           *virt_addr;
     unsigned long   phys_addr;
     unsigned char  *p_prevscrn;
+};
+
+static uint8_t tab_init[]={
+    /* page 0 */
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    /* page 1 */
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+
+    /* page 2: '    Shenzhen' */
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0x00,0x70,0x88,0x08,0x08,0x08,0x38,0x00,0x08,0xF8,0x00,0x80,0x80,0x80,0x00,0x00, /* 'Sh' */
+    0x00,0x00,0x80,0x80,0x80,0x80,0x00,0x00,0x80,0x80,0x00,0x80,0x80,0x80,0x00,0x00, /* 'en' */
+    0x00,0x80,0x80,0x80,0x80,0x80,0x80,0x00,0x08,0xF8,0x00,0x80,0x80,0x80,0x00,0x00, /* 'zh' */
+    0x00,0x00,0x80,0x80,0x80,0x80,0x00,0x00,0x80,0x80,0x00,0x80,0x80,0x80,0x00,0x00, /* 'en' */
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    /* page 3 */
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0x00,0x38,0x20,0x21,0x21,0x22,0x1C,0x00,0x20,0x3F,0x21,0x00,0x00,0x20,0x3F,0x20, /* 'Sh' */
+    0x00,0x1F,0x22,0x22,0x22,0x22,0x13,0x00,0x20,0x3F,0x21,0x00,0x00,0x20,0x3F,0x20, /* 'en' */
+    0x00,0x21,0x30,0x2C,0x22,0x21,0x30,0x00,0x20,0x3F,0x21,0x00,0x00,0x20,0x3F,0x20, /* 'zh' */
+    0x00,0x1F,0x22,0x22,0x22,0x22,0x13,0x00,0x20,0x3F,0x21,0x00,0x00,0x20,0x3F,0x20, /* 'en' */
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+
+    /* page 4: 'Intelligine Tech' */
+    0x00,0x08,0x08,0xF8,0x08,0x08,0x00,0x00,0x80,0x80,0x00,0x80,0x80,0x80,0x00,0x00, /* 'In' */
+    0x00,0x80,0x80,0xE0,0x80,0x80,0x00,0x00,0x00,0x00,0x80,0x80,0x80,0x80,0x00,0x00, /* 'te' */
+    0x00,0x08,0x08,0xF8,0x00,0x00,0x00,0x00,0x00,0x08,0x08,0xF8,0x00,0x00,0x00,0x00, /* 'll' */
+    0x00,0x80,0x98,0x98,0x00,0x00,0x00,0x00,0x00,0x00,0x80,0x80,0x80,0x80,0x80,0x00, /* 'ig' */
+    0x00,0x80,0x98,0x98,0x00,0x00,0x00,0x00,0x80,0x80,0x00,0x80,0x80,0x80,0x00,0x00, /* 'in' */
+    0x00,0x00,0x80,0x80,0x80,0x80,0x00,0x00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00, /* 'e ' */
+    0x18,0x08,0x08,0xF8,0x08,0x08,0x18,0x00,0x00,0x00,0x80,0x80,0x80,0x80,0x00,0x00, /* 'Te' */
+    0x00,0x00,0x00,0x80,0x80,0x80,0x00,0x00,0x08,0xF8,0x00,0x80,0x80,0x80,0x00,0x00, /* 'ch' */
+    /* page 5 */
+    0x00,0x20,0x20,0x3F,0x20,0x20,0x00,0x00,0x20,0x3F,0x21,0x00,0x00,0x20,0x3F,0x20, /* 'In' */
+    0x00,0x00,0x00,0x1F,0x20,0x20,0x00,0x00,0x00,0x1F,0x22,0x22,0x22,0x22,0x13,0x00, /* 'te' */
+    0x00,0x20,0x20,0x3F,0x20,0x20,0x00,0x00,0x00,0x20,0x20,0x3F,0x20,0x20,0x00,0x00, /* 'll' */
+    0x00,0x20,0x20,0x3F,0x20,0x20,0x00,0x00,0x00,0x6B,0x94,0x94,0x94,0x93,0x60,0x00, /* 'ig' */
+    0x00,0x20,0x20,0x3F,0x20,0x20,0x00,0x00,0x20,0x3F,0x21,0x00,0x00,0x20,0x3F,0x20, /* 'in' */
+    0x00,0x1F,0x22,0x22,0x22,0x22,0x13,0x00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00, /* 'e ' */
+    0x00,0x00,0x20,0x3F,0x20,0x00,0x00,0x00,0x00,0x1F,0x22,0x22,0x22,0x22,0x13,0x00, /* 'Te' */
+    0x00,0x0E,0x11,0x20,0x20,0x20,0x11,0x00,0x20,0x3F,0x21,0x00,0x00,0x20,0x3F,0x20, /* 'ch' */
+
+    /* page 6 */
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    /* page 7 */
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
+    0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
 };
 
 static struct platform_device *p_dummy_sh1106_dev;
@@ -158,7 +237,7 @@ static int sh1106_release(struct inode *inode, struct file *fl)
 }
 
 #if 1
-static void sh1106_update_1page(struct sh1106_info *p_info, int page_index)
+static void sh1106_update_1page(struct sh1106_info *p_info, int page_index, unsigned int cmd)
 {
     int updated_column = 0;
     unsigned char cmds[3];
@@ -166,7 +245,7 @@ static void sh1106_update_1page(struct sh1106_info *p_info, int page_index)
     unsigned char prev_colhi = 0xFF;
     unsigned char prev_collo = 0xFF;
     unsigned char start = 0;
-    unsigned char end;
+    unsigned char end = 0xFF;
     unsigned char *p_new;
     unsigned char *p_old;
     int i;
@@ -174,7 +253,11 @@ static void sh1106_update_1page(struct sh1106_info *p_info, int page_index)
     int offset;
 
     offset = page_index << 7;
-    p_new = ((char *)p_info->virt_addr) + offset;
+    if (SHIO_PAN2SCRN == cmd) {
+        p_new = ((char *)p_info->virt_addr) + SH1106_FBSIZE + offset;
+    } else {
+        p_new = ((char *)p_info->virt_addr) + offset;
+    }
     p_old = p_info->p_prevscrn + offset;
     while (updated_column < SH1106_COL_NUM) {
         if (p_new[updated_column] == p_old[updated_column]) {
@@ -233,6 +316,10 @@ static void sh1106_update_1page(struct sh1106_info *p_info, int page_index)
         }
     } /* end of while */
 
+    if (0xFF != end) {
+        memcpy(p_old, p_new, SH1106_COL_NUM);
+    }
+
 }
 #else
 static void sh1106_update_1page(struct sh1106_info *p_info, int i)
@@ -253,18 +340,14 @@ static void sh1106_update_1page(struct sh1106_info *p_info, int i)
 static long sh1106_ioctl(struct file *fl, unsigned int cmd, unsigned long arg)
 {
     int i;
-    u64 old, now;
     struct sh1106_info *p_info = &g_sh1106_info;
 
     switch(cmd) {
         case SHIO_PANDISPLAY:
-            old = sh1106_get_cur_usec();
+        case SHIO_PAN2SCRN:
             for (i = 0; i < 8; i++) {
-                sh1106_update_1page(p_info, i);
+                sh1106_update_1page(p_info, i, cmd);
             }
-            now = sh1106_get_cur_usec();
-            printk("%d usec to update\n", (int)(now - old));
-            memcpy(p_info->p_prevscrn, p_info->virt_addr, SH1106_FBSIZE);
             break;
 
         default:
@@ -282,7 +365,7 @@ static int sh1106_mmap(struct file *fl, struct vm_area_struct *vma)
 
     vma->vm_page_prot = vm_get_page_prot(vma->vm_flags);
     vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
-    return vm_iomap_memory(vma, p_info->phys_addr, SH1106_FBSIZE);;
+    return vm_iomap_memory(vma, p_info->phys_addr, SH1106_FBSIZE << 1);
 }
 static struct file_operations sh1106_fops = {
 	.owner = THIS_MODULE,
@@ -294,9 +377,10 @@ static struct file_operations sh1106_fops = {
 
 static int sh1106_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
-	int rc = 0;
+    int rc = 0;
     struct sh1106_info *p_info = &g_sh1106_info;
     int i, k;
+    unsigned char *p_mem;
     u64 t1, t2;
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
@@ -318,21 +402,24 @@ static int sh1106_probe(struct i2c_client *client, const struct i2c_device_id *i
         goto out;
 	}
 
-    if (!(p_info->virt_addr = alloc_pages_exact(SH1106_FBSIZE, 0))) {
+    if (!(p_info->virt_addr = alloc_pages_exact(SH1106_FBSIZE << 1, 0))) {
         printk("Err: alloc fb!\n");
         goto out;
     }
     p_info->phys_addr = virt_to_phys(p_info->virt_addr);
     p_info->p_prevscrn = kzalloc(SH1106_FBSIZE, GFP_KERNEL);
-    memset(p_info->p_prevscrn, 0x55, SH1106_FBSIZE);
+    // memset(p_info->p_prevscrn, 0x55, SH1106_FBSIZE);
+    memcpy(p_info->p_prevscrn, tab_init, SH1106_FBSIZE);
 
     t1 = sh1106_get_cur_usec();
     k = 0;
+    p_mem = p_info->p_prevscrn;
     for (i = 0; i < 8; i++) {
         sh1106_wr_cmd(p_info, 0xB0 + i);
         sh1106_wr_cmd(p_info, 0x10);
         sh1106_wr_cmd(p_info, 0x02);
-        sh1106_wr_multidata(p_info, p_info->p_prevscrn, 128);
+        sh1106_wr_multidata(p_info, p_mem, 128);
+        p_mem += 128;
     }
     t2 = sh1106_get_cur_usec();
 
@@ -349,7 +436,7 @@ static int sh1106_remove(struct i2c_client *client)
 
     misc_deregister(&(p_info->miscdev));
 
-    free_pages_exact(p_info->virt_addr, SH1106_FBSIZE);
+    free_pages_exact(p_info->virt_addr, SH1106_FBSIZE << 1);
     p_info->virt_addr = NULL;
 
     kfree(p_info->p_prevscrn);
