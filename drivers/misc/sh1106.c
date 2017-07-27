@@ -409,6 +409,7 @@ static int sh1106_probe(struct i2c_client *client, const struct i2c_device_id *i
     p_info->phys_addr = virt_to_phys(p_info->virt_addr);
     p_info->p_prevscrn = kzalloc(SH1106_FBSIZE, GFP_KERNEL);
     // memset(p_info->p_prevscrn, 0x55, SH1106_FBSIZE);
+    memcpy(p_info->virt_addr, tab_init, SH1106_FBSIZE);
     memcpy(p_info->p_prevscrn, tab_init, SH1106_FBSIZE);
 
     t1 = sh1106_get_cur_usec();
