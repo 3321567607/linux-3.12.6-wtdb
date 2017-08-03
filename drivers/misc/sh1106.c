@@ -11,6 +11,7 @@
 #include <linux/slab.h>
 #include <linux/miscdevice.h>
 #include <linux/platform_device.h>
+#include <asm/uaccess.h>
 
 #define SH1106_IIC_SPEED (100 * 1000)
 #define OP_CMD 0x00
@@ -22,6 +23,7 @@
 
 #define SHIO_PANDISPLAY 0x3721
 #define SHIO_PAN2SCRN   0x3722
+#define SHIO_ORIGSCREEN 0x3723
 
 struct sh1106_gpio {
 	int gpio;
@@ -253,11 +255,15 @@ static void sh1106_update_1page(struct sh1106_info *p_info, int page_index, unsi
     int offset;
 
     offset = page_index << 7;
+#if 0
     if (SHIO_PAN2SCRN == cmd) {
         p_new = ((char *)p_info->virt_addr) + SH1106_FBSIZE + offset;
     } else {
         p_new = ((char *)p_info->virt_addr) + offset;
     }
+#else
+    p_new = ((char *)p_info->virt_addr) + offset;
+#endif
     p_old = p_info->p_prevscrn + offset;
     while (updated_column < SH1106_COL_NUM) {
         if (p_new[updated_column] == p_old[updated_column]) {
@@ -340,13 +346,30 @@ static void sh1106_update_1page(struct sh1106_info *p_info, int i)
 static long sh1106_ioctl(struct file *fl, unsigned int cmd, unsigned long arg)
 {
     int i;
+    void __user *argp = (void __user *)arg;
     struct sh1106_info *p_info = &g_sh1106_info;
+    unsigned char *p_mem;
 
     switch(cmd) {
         case SHIO_PANDISPLAY:
         case SHIO_PAN2SCRN:
+            if (copy_from_user(p_info->virt_addr, argp, SH1106_FBSIZE)) {
+                printk("Err: %s copy from user!\n", __FUNCTION__);
+                return -1;
+            }
             for (i = 0; i < 8; i++) {
                 sh1106_update_1page(p_info, i, cmd);
+            }
+            break;
+
+        case SHIO_ORIGSCREEN:
+            p_mem = tab_init;
+            for (i = 0; i < 8; i++) {
+                sh1106_wr_cmd(p_info, 0xB0 + i);
+                sh1106_wr_cmd(p_info, 0x10);
+                sh1106_wr_cmd(p_info, 0x02);
+                sh1106_wr_multidata(p_info, p_mem, 128);
+                p_mem += 128;
             }
             break;
 
@@ -372,7 +395,7 @@ static struct file_operations sh1106_fops = {
 	.open = sh1106_open,
 	.release = sh1106_release,
 	.unlocked_ioctl = sh1106_ioctl,
-	.mmap = sh1106_mmap,
+	// .mmap = sh1106_mmap,
 };
 
 static int sh1106_probe(struct i2c_client *client, const struct i2c_device_id *id)
