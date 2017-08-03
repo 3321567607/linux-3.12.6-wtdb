@@ -371,6 +371,7 @@ static long sh1106_ioctl(struct file *fl, unsigned int cmd, unsigned long arg)
                 sh1106_wr_multidata(p_info, p_mem, 128);
                 p_mem += 128;
             }
+            memcpy(p_info->p_prevscrn, tab_init, SH1106_FBSIZE);
             break;
 
         default:
